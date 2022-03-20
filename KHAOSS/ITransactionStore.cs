@@ -11,7 +11,7 @@ namespace KHAOSS
         void WriteTransaction(Transaction transaction);
         void StartFileManagement();
 
-        IAsyncEnumerable<TransactionRecord> LoadRecords(CancellationToken cancellationToken);
+        IEnumerable<TransactionRecord> LoadRecords(CancellationToken cancellationToken);
 
         void RemoveAllDocuments();
         Task ForceMaintenance();

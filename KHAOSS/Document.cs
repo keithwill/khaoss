@@ -9,7 +9,7 @@ namespace KHAOSS
     public class Document
     {
         public int Version { get; set; }
-        public ReadOnlyMemory<byte> Body { get; set; }
+        public byte[] Body { get; set; }
         public int SizeInStore { get; set; }
 
     }

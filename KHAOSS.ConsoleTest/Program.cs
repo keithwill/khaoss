@@ -101,7 +101,7 @@ namespace KHAOSS.ConsoleTest
 
         private static async Task SetValue(string key, string body, int version)
         {
-            ReadOnlyMemory<byte> bodyBytes = System.Text.Encoding.UTF8.GetBytes(body);
+            var bodyBytes = System.Text.Encoding.UTF8.GetBytes(body);
             var result = await engine.Store.Set(key, new Document { Version = version, Body = bodyBytes });
         }
 
@@ -115,7 +115,7 @@ namespace KHAOSS.ConsoleTest
 // As an optimization, edge labels can be stored in constant size by using two pointers to a string (for the first and last elements).[1]
 // Note that although the examples in this article show strings as sequences of characters, the type of the string elements can be chosen arbitrarily; for example, as a bit or byte of the string representation when using multibyte character encodings or Unicode.";
 
-            ReadOnlyMemory<byte> bodyBytes = System.Text.Encoding.UTF8.GetBytes(body);
+            var bodyBytes = System.Text.Encoding.UTF8.GetBytes(body);
             var result = await engine.Store.Set(key, new Document { Version = 1, Body = bodyBytes });
         }
 

@@ -87,7 +87,7 @@ public class DataEngine : IDataEngine, IDisposable
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         this.transactionStore.StartFileManagement();
-        await this.LoadRecordsFromStore(cancellationToken);
+        this.LoadRecordsFromStore(cancellationToken);
         await this.transactionProcessor.Start();
     }
 
@@ -98,11 +98,11 @@ public class DataEngine : IDataEngine, IDisposable
         this.transactionStore.Dispose();
     }
 
-    private async Task LoadRecordsFromStore(CancellationToken cancellationToken)
+    private void LoadRecordsFromStore(CancellationToken cancellationToken)
     {
         Stopwatch sw = new();
         sw.Start();
-        await foreach (var record in this.transactionStore.LoadRecords(cancellationToken))
+        foreach (var record in this.transactionStore.LoadRecords(cancellationToken))
         {
             if (record.ChangeType == DocumentChangeType.Set)
             {

@@ -1,5 +1,4 @@
-﻿using MessagePack;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 
@@ -13,8 +12,6 @@ namespace KHAOSS;
 /// </summary>
 public class AppendOnlyStore : ITransactionStore, IDisposable
 {
-
-    private MessagePackSerializerOptions serializerOptions;
     private Stream outputStream;
     private readonly Func<Stream> rewriteStreamFactory;
     private readonly Func<Stream, Stream, Stream> swapRewriteStreamCallback;
@@ -40,8 +37,6 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
         this.rewriteStreamFactory = rewriteStreamFactory;
         this.swapRewriteStreamCallback = swapRewriteStreamCallback;
         this.memoryStore = memoryStore;
-        //this.serializerOptions = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block);
-        this.serializerOptions = MessagePackSerializerOptions.Standard;
         this.serializationRecord = new TransactionRecord();
     }
 
@@ -128,7 +123,7 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
 
     }
 
-    public async IAsyncEnumerable<TransactionRecord> LoadRecords([EnumeratorCancellation] CancellationToken cancellationToken)
+    public IEnumerable<TransactionRecord> LoadRecords(CancellationToken cancellationToken)
     {
         // We only take an anemic approach to checking for load and write contention
 
@@ -137,42 +132,15 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            var lengthBytesRead = await outputStream.ReadAsync(lengthBytes, 0, 4, cancellationToken);
-
-            if (lengthBytesRead < 4)
+            var transactionrecord = TransactionRecord.LoadFromStream(outputStream, ref readBuffer);
+            if (transactionrecord == null)
             {
-                break;
+                yield break;
             }
-
-            var recordLength = BitConverter.ToInt32(lengthBytes);
-
-            // Make sure we have enough space in our read buffer
-            // We don't reallocate a buffer for each read so that we can minimize allocation
-            // Though byte array pooling could also be used here
-            if (readBuffer.Length < recordLength)
+            else
             {
-                // Attempt to minimize effect of slowly growing buffer size a bit
-                var newBufferSize = readBuffer.Length;
-
-                while (newBufferSize < recordLength)
-                {
-                    newBufferSize *= 2;
-                }
-                readBuffer = new byte[newBufferSize];
+                yield return transactionrecord;
             }
-
-            var recordBytesRead = await outputStream.ReadAsync(readBuffer, 0, recordLength, cancellationToken);
-
-            if (recordBytesRead != recordLength)
-            {
-                throw new Exception("Failed to read a record");
-                //TODO: figure out how we want to log or recover from a record missing at the end of a file
-            }
-            var recordMemory = readBuffer.AsMemory(0, recordLength);
-            var record = MessagePackSerializer.Deserialize<TransactionRecord>(recordMemory, serializerOptions);
-            record.SizeInStore = 4 + recordLength;
-
-            yield return record;
         }
 
     }
@@ -212,16 +180,7 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
 
     private void WriteRewriteTransaction(TransactionRecord record)
     {
-        ReadOnlySpan<byte> recordBytes = MessagePackSerializer.Serialize(record, serializerOptions);
-        Span<byte> lengthBytes = stackalloc byte[4];
-        if (!BitConverter.TryWriteBytes(lengthBytes, recordBytes.Length))
-        {
-            throw new Exception("Could not estimate payload length");
-        }
-        ReadOnlySpan<byte> readOnlyLengthBytes = lengthBytes;
-        var written = readOnlyLengthBytes.Length + recordBytes.Length;
-        this.rewriteStream.Write(readOnlyLengthBytes);
-        this.rewriteStream.Write(recordBytes);
+        record.WriteTostream(this.rewriteStream);
     }
 
     private void WriteDocumentChange(DocumentChange documentChange)
@@ -238,17 +197,11 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
             serializationRecord.Body = documentChange.Document.Body;
         }
 
-        ReadOnlySpan<byte> recordBytes = MessagePackSerializer.Serialize(serializationRecord, serializerOptions);
-        Span<byte> lengthBytes = stackalloc byte[4];
-        if (!BitConverter.TryWriteBytes(lengthBytes, recordBytes.Length))
-        {
-            throw new Exception("Could not estimate payload length");
-        }
-
-        ReadOnlySpan<byte> readOnlyLengthBytes = lengthBytes;
         lock (writeLock)
         {
-            var written = readOnlyLengthBytes.Length + recordBytes.Length;
+            serializationRecord.WriteTostream(outputStream);
+
+            var written = serializationRecord.SizeInStore;
             unflushed += written;
 
             if (documentChange.ChangeType == DocumentChangeType.Set)
@@ -260,13 +213,10 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
                 memoryStore.AddDeadSpace(written);
             }
 
-            outputStream.Write(readOnlyLengthBytes);
-            outputStream.Write(recordBytes);
 
             if (rewriteTailBuffer != null)
             {
-                rewriteTailBuffer.Write(readOnlyLengthBytes);
-                rewriteTailBuffer.Write(recordBytes);
+                serializationRecord.WriteTostream(rewriteStream);
             }
 
             if (rewriteStream == null)
@@ -280,8 +230,7 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
                     // These could be written to the tail buffer instead
                     // Putting them into the rewrite stream means they are out
                     // of order with when the transaction was done, but shouldn't matter
-                    rewriteStream.Write(readOnlyLengthBytes);
-                    rewriteStream.Write(recordBytes);
+                    serializationRecord.WriteTostream(rewriteStream);
 
                     memoryStore.ResetDeadSpace();
                     rewriteTask = Task.Run(() => Rewrite());

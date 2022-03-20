@@ -18,9 +18,8 @@ namespace KHAOSS
         {
         }
 
-        public async IAsyncEnumerable<TransactionRecord> LoadRecords([EnumeratorCancellation] CancellationToken cancellationToken = default)
+        public IEnumerable<TransactionRecord> LoadRecords(CancellationToken cancellationToken = default)
         {
-            await Task.Delay(0);
             yield break;
         }
 
