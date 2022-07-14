@@ -142,18 +142,18 @@ namespace KHAOSS
 
         }
 
-        public Node<T> GetValue(byte[] key, int startingCharacter)
+        public Node<T> GetValue(Span<byte> key)
         {
             if (Children == null) return null;
-            var remainingKeyLength = key.Length - startingCharacter;
+            //var remainingKeyLength = key.Length - startingCharacter;
 
             foreach(var child in Children)
             {
-                var matchingBytes = GetMatchingBytes(key, startingCharacter, child.KeySegment);
+                var matchingBytes = GetMatchingBytes(key, child.KeySegment);
                    
                 if (matchingBytes > 0)
                 {
-                    if (matchingBytes == remainingKeyLength)
+                    if (matchingBytes == key.Length)
                     {
                         if (matchingBytes == child.KeySegment.Length)
                         {
@@ -170,9 +170,9 @@ namespace KHAOSS
                             return null;
                         }
                     }
-                    else if (matchingBytes < remainingKeyLength)
+                    else if (matchingBytes < key.Length)
                     {
-                        return child.GetValue(key, startingCharacter + matchingBytes);
+                        return child.GetValue(key.Slice(matchingBytes));
                     }    
                 }
             }
@@ -224,7 +224,7 @@ namespace KHAOSS
         /// <param name="keySegment"></param>
         /// <param name="result">The matching child node</param>
         /// <returns>The number of matching bytes</returns>
-        internal Node<T> FindMatchingChild(byte[] keySegment, int startingCharacter, out int bytesMatching)
+        private Node<T> FindMatchingChild(byte[] keySegment, int startingCharacter, out int bytesMatching)
         {
             if (Children != null)
             {

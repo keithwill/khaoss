@@ -44,8 +44,8 @@ namespace KHAOSS
 
         public T Get(string key)
         {
-            var keyBytes = Node<T>.GetKeyBytes(key);
-            return root.GetValue(keyBytes, 0)?.Value;
+            var keySpan = GetKeyAsUtf8ByteSpan(key);
+            return root.GetValue(keySpan)?.Value;
         }
 
         public void Clear()
@@ -68,8 +68,7 @@ namespace KHAOSS
         private IEnumerable<KeyValuePair<string, T>> GetByPrefixUnsorted(string keyPrefix)
         {
             results.Clear();
-            var keyPrefixLength = Encoding.UTF8.GetBytes(keyPrefix, keyPrefixBuffer);
-            var keyPrefixSpan = new Span<byte>(keyPrefixBuffer, 0, keyPrefixLength);
+            var keyPrefixSpan = GetKeyAsUtf8ByteSpan(keyPrefix);
 
             if (keyPrefix == string.Empty)
             {
@@ -124,9 +123,17 @@ namespace KHAOSS
 
         public void Remove(string key)
         {
-            var keyPrefixBytes = Node<T>.GetKeyBytes(key);
-            var node = root.GetValue(keyPrefixBytes, 0);
+            var keySpan = GetKeyAsUtf8ByteSpan(key);
+            var node = root.GetValue(keySpan);
             node?.RemoveValue();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private Span<byte> GetKeyAsUtf8ByteSpan(string key)
+        {
+            var keyPrefixLength = Encoding.UTF8.GetBytes(key, keyPrefixBuffer);
+            var keyPrefixSpan = new Span<byte>(keyPrefixBuffer, 0, keyPrefixLength);
+            return keyPrefixSpan;
         }
 
     }
