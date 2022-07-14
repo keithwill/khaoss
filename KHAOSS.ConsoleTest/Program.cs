@@ -11,7 +11,6 @@ namespace KHAOSS.ConsoleTest
 {
     class Program
     {
-        //static ConnectionMultiplexer redis;
         static DataEngine engine;
        
 

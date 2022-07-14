@@ -9,9 +9,21 @@ namespace KHAOSS
     public class Node<T> where T : class
     {
         public Node<T> Parent = null;
-        public byte[] KeySegment;
+        private byte[] keySegment;
+        public byte[] KeySegment 
+        { 
+            get => keySegment;
+            set 
+            {
+                keySegment = value;
+                labelCache = null;
+            }
+        }
+        private string labelCache = null;
+
         public Node<T>[] Children;
         public T Value;
+
 
         public Node()
         {
@@ -102,7 +114,7 @@ namespace KHAOSS
             Children[^1] = newChild;
         }
 
-        public string Label => System.Text.Encoding.UTF8.GetString(KeySegment);
+        public string Label => labelCache != null ? labelCache : labelCache = System.Text.Encoding.UTF8.GetString(KeySegment);
 
         public static byte[] GetKeySegment(byte[] key, int startingCharacter)
         {

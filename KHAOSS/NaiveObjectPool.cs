@@ -17,7 +17,7 @@ namespace KHAOSS
             this.queue = new ConcurrentQueue<T>();
 
         }
-
+        public Func<T> InstanceFactory { get; set; }
         public int PooledInstanceCount => this.queue.Count;
 
         public T Lease()
@@ -27,6 +27,10 @@ namespace KHAOSS
                 return result;
             } else
             {
+                if (InstanceFactory != null)
+                {
+                    return InstanceFactory();
+                }
                 return new T();
             }
         }
