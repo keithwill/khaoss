@@ -24,13 +24,11 @@ namespace KHAOSS
 
         private Node<T> root;
 
-        private NaiveObjectPool<StringBuilder> stringBuilderPool = new();
         private byte[] keyReadBuffer = new byte[1_000_000];
 
         public PrefixLookup()
         {
             root = new Node<T>(null, Node<T>.GetKeyBytes(string.Empty));
-            stringBuilderPool.InstanceFactory = () => new StringBuilder(512);
         }
 
         public int NodeCount => root.GetChildrenCount();
@@ -65,29 +63,25 @@ namespace KHAOSS
             return GetByPrefixSorted(keyPrefix);
 
         }
-
+        private List<Node<T>> results = new();
         private IEnumerable<KeyValuePair<string, T>> GetByPrefixUnsorted(string keyPrefix)
         {
-            
+            results.Clear();
             var keyPrefixBytes = Node<T>.GetKeyBytes(keyPrefix);
-
-            IEnumerable<Node<T>> matchingNodesWithValues;
 
             if (keyPrefix == string.Empty)
             {
-                matchingNodesWithValues = root.GetAllValuesAtOrBelow();
+                root.GetAllValuesAtOrBelow(results);
             }
             else
             {
-                matchingNodesWithValues = root.GetValuesByPrefix(keyPrefixBytes, 0);
+                root.GetValuesByPrefix(keyPrefixBytes, 0, results);
             }
 
-            foreach(var node in matchingNodesWithValues)
+            foreach(var node in results)
             {
-
                 int keyByteLength = node.KeySegment.Length;
                 var parent = node.Parent;
-
                 while (parent != null)
                 {
                     keyByteLength += parent.KeySegment.Length;
@@ -96,7 +90,6 @@ namespace KHAOSS
                 var keyBytes = new Span<byte>(keyReadBuffer, 0, keyByteLength);
                 parent = node.Parent;
                 int offset = 0;
-
                 while (parent != null)
                 {
                     if (parent.KeySegment.Length == 1)
@@ -106,7 +99,7 @@ namespace KHAOSS
                     }
                     if (parent.KeySegment.Length > 1)
                     {
-                        for(int i = parent.KeySegment.Length - 1; i >= 0; i--)
+                        for (int i = parent.KeySegment.Length - 1; i >= 0; i--)
                         {
                             keyBytes[offset + i] = parent.KeySegment[i];
                         }
@@ -114,26 +107,8 @@ namespace KHAOSS
                     }
                     parent = parent.Parent;
                 }
-
                 keyBytes.Reverse();
                 var key = System.Text.Encoding.UTF8.GetString(keyBytes);
-                //sb.Clear();
-                //keyNodes.Clear();
-
-                //var parent = node.Parent;
-                //keyNodes.Add(node);
-
-                //while (parent != null)
-                //{
-                //    keyNodes.Add(parent);
-                //    parent = parent.Parent;
-                //}
-                //for (int i = keyNodes.Count - 1; i > -1; i--)
-                //{
-                //    var nodeLabel = keyNodes[i].Label;
-                //    sb.Append(nodeLabel);
-                //}
-
                 yield return new KeyValuePair<string, T>(key, node.Value);
             }
         }

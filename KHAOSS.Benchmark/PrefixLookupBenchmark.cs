@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 namespace KHAOSS.Benchmark
 {
     [MemoryDiagnoser]
-    [SimpleJob(launchCount: 1, warmupCount: 1, targetCount: 5)]
+    //[SimpleJob(launchCount: 1, warmupCount: 1, targetCount: 5)]
     public class PrefixLookupBenchmark
     {
 

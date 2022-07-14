@@ -9,17 +9,7 @@ namespace KHAOSS
     public class Node<T> where T : class
     {
         public Node<T> Parent = null;
-        private byte[] keySegment;
-        public byte[] KeySegment 
-        { 
-            get => keySegment;
-            set 
-            {
-                keySegment = value;
-                labelCache = null;
-            }
-        }
-        private string labelCache = null;
+        public byte[] KeySegment;
 
         public Node<T>[] Children;
         public T Value;
@@ -114,8 +104,6 @@ namespace KHAOSS
             Children[^1] = newChild;
         }
 
-        public string Label => labelCache != null ? labelCache : labelCache = System.Text.Encoding.UTF8.GetString(KeySegment);
-
         public static byte[] GetKeySegment(byte[] key, int startingCharacter)
         {
             var remainingLength = key.Length - startingCharacter;
@@ -156,43 +144,42 @@ namespace KHAOSS
 
         public Node<T> GetValue(byte[] key, int startingCharacter)
         {
+            if (Children == null) return null;
             var remainingKeyLength = key.Length - startingCharacter;
-            if (Children != null)
-            {
-                foreach(var child in Children)
-                {
-                    var matchingBytes = GetMatchingBytes(key, startingCharacter, child.KeySegment);
-                   
-                    if (matchingBytes > 0)
-                    {
-                        if (matchingBytes == remainingKeyLength)
-                        {
-                            if (matchingBytes == child.KeySegment.Length)
-                            {
-                                // We found a key with an exact match
-                                return child;
-                            }
-                            else
-                            {
-                                // We found a key that was longer than the
-                                // one we were looking for that matched the length of the key
 
-                                // In a radix tree, that means our key wasn't found, because if it
-                                // existed, it would have been split at our length
-                                return null;
-                            }
-                        }
-                        else if (matchingBytes < remainingKeyLength)
+            foreach(var child in Children)
+            {
+                var matchingBytes = GetMatchingBytes(key, startingCharacter, child.KeySegment);
+                   
+                if (matchingBytes > 0)
+                {
+                    if (matchingBytes == remainingKeyLength)
+                    {
+                        if (matchingBytes == child.KeySegment.Length)
                         {
-                            return child.GetValue(key, startingCharacter + matchingBytes);
-                        }    
+                            // We found a key with an exact match
+                            return child;
+                        }
+                        else
+                        {
+                            // We found a key that was longer than the
+                            // one we were looking for that matched the length of the key
+
+                            // In a radix tree, that means our key wasn't found, because if it
+                            // existed, it would have been split at our length
+                            return null;
+                        }
                     }
+                    else if (matchingBytes < remainingKeyLength)
+                    {
+                        return child.GetValue(key, startingCharacter + matchingBytes);
+                    }    
                 }
             }
             return null;
         }
 
-        public IEnumerable<Node<T>> GetValuesByPrefix(byte[] key, int startingCharacter)
+        public void GetValuesByPrefix(byte[] key, int startingCharacter, List<Node<T>> results)
         {
             var remainingKeyLength = key.Length - startingCharacter;
             if (Children != null)
@@ -206,49 +193,28 @@ namespace KHAOSS
                         {
                             // We found a key that matched the entire prefix,
                             // either exactly or at least to the length of the search key
-                            var allChildrenValues = child.GetAllValuesAtOrBelow();
-                            if (allChildrenValues != null)
-                            {
-                                foreach(var childrenValue in allChildrenValues)
-                                {
-                                    yield return childrenValue;
-                                }
-                            }
+                            child.GetAllValuesAtOrBelow(results);
                         }
                         else if (matchingBytes < remainingKeyLength)
                         {
-                            var childMatches = child.GetValuesByPrefix(key, startingCharacter + matchingBytes);
-                            if (childMatches != null)
-                            {
-                                foreach(var result in childMatches)
-                                {
-                                    yield return result;
-                                }
-                            }
+                            child.GetValuesByPrefix(key, startingCharacter + matchingBytes, results);
                         }      
                     }
                 }
             }
         }
 
-        public IEnumerable<Node<T>> GetAllValuesAtOrBelow()
+        public void GetAllValuesAtOrBelow(List<Node<T>> results)
         {
             if (Value != null)
             {
-                yield return this;
+                results.Add(this);
             }
             if (Children != null)
             {
                 foreach(var child in Children)
                 {
-                    var childValues = child.GetAllValuesAtOrBelow();
-                    if (childValues != null)
-                    {
-                        foreach(var childValue in childValues)
-                        {
-                            yield return childValue;
-                        }
-                    }
+                    child.GetAllValuesAtOrBelow(results);
                 }
             }
         }
@@ -333,7 +299,6 @@ namespace KHAOSS
         {
             var keySpan = key.Slice(keyStartingCharacter);
             var bytesToCheck = Math.Min(keySpan.Length, keySegmentToMatch.Length);
-
             for (int i = 0; i < bytesToCheck; i++)
             {
                 if (keySpan[i] != keySegmentToMatch[i])
