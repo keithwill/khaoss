@@ -196,7 +196,6 @@ namespace KHAOSS
                         }
                         else if (matchingBytes < key.Length)
                         {
-                            ;
                             child.GetValuesByPrefix(key.Slice(matchingBytes), results);
                         }      
                     }
@@ -312,8 +311,8 @@ namespace KHAOSS
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int GetMatchingBytes(in ReadOnlySpan<byte> key, in ReadOnlySpan<byte> keySegmentToMatch)
-        {            
+        public static int GetMatchingBytes(ReadOnlySpan<byte> key, ReadOnlySpan<byte> keySegmentToMatch)
+        {
             var bytesToCheck = Math.Min(key.Length, keySegmentToMatch.Length);
             for (int i = 0; i < bytesToCheck; i++)
             {
