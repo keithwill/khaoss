@@ -179,25 +179,25 @@ namespace KHAOSS
             return null;
         }
 
-        public void GetValuesByPrefix(byte[] key, int startingCharacter, List<Node<T>> results)
+        public void GetValuesByPrefix(Span<byte> key, List<Node<T>> results)
         {
-            var remainingKeyLength = key.Length - startingCharacter;
             if (Children != null)
             {
                 foreach(var child in Children)
                 {
-                    var matchingBytes = GetMatchingBytes(key, startingCharacter, child.KeySegment);
+                    var matchingBytes = GetMatchingBytes(key, child.KeySegment);
                     if (matchingBytes > 0)
                     {
-                        if (matchingBytes == remainingKeyLength)
+                        if (matchingBytes == key.Length)
                         {
                             // We found a key that matched the entire prefix,
                             // either exactly or at least to the length of the search key
                             child.GetAllValuesAtOrBelow(results);
                         }
-                        else if (matchingBytes < remainingKeyLength)
+                        else if (matchingBytes < key.Length)
                         {
-                            child.GetValuesByPrefix(key, startingCharacter + matchingBytes, results);
+                            ;
+                            child.GetValuesByPrefix(key.Slice(matchingBytes), results);
                         }      
                     }
                 }
@@ -309,6 +309,20 @@ namespace KHAOSS
 
             return bytesToCheck;
 
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int GetMatchingBytes(in ReadOnlySpan<byte> key, in ReadOnlySpan<byte> keySegmentToMatch)
+        {            
+            var bytesToCheck = Math.Min(key.Length, keySegmentToMatch.Length);
+            for (int i = 0; i < bytesToCheck; i++)
+            {
+                if (key[i] != keySegmentToMatch[i])
+                {
+                    return i;
+                }
+            }
+            return bytesToCheck;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

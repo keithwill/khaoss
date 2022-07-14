@@ -25,6 +25,7 @@ namespace KHAOSS
         private Node<T> root;
 
         private byte[] keyReadBuffer = new byte[1_000_000];
+        private byte[] keyPrefixBuffer = new byte[1_000_000];
 
         public PrefixLookup()
         {
@@ -67,7 +68,8 @@ namespace KHAOSS
         private IEnumerable<KeyValuePair<string, T>> GetByPrefixUnsorted(string keyPrefix)
         {
             results.Clear();
-            var keyPrefixBytes = Node<T>.GetKeyBytes(keyPrefix);
+            var keyPrefixLength = Encoding.UTF8.GetBytes(keyPrefix, keyPrefixBuffer);
+            var keyPrefixSpan = new Span<byte>(keyPrefixBuffer, 0, keyPrefixLength);
 
             if (keyPrefix == string.Empty)
             {
@@ -75,7 +77,7 @@ namespace KHAOSS
             }
             else
             {
-                root.GetValuesByPrefix(keyPrefixBytes, 0, results);
+                root.GetValuesByPrefix(keyPrefixSpan, results);
             }
 
             foreach(var node in results)
@@ -108,7 +110,7 @@ namespace KHAOSS
                     parent = parent.Parent;
                 }
                 keyBytes.Reverse();
-                var key = System.Text.Encoding.UTF8.GetString(keyBytes);
+                var key = Encoding.UTF8.GetString(keyBytes);
                 yield return new KeyValuePair<string, T>(key, node.Value);
             }
         }
