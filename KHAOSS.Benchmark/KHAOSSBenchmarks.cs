@@ -9,7 +9,7 @@ namespace KHAOSS.Benchmark
 {
     [MemoryDiagnoser]
     //[SimpleJob(launchCount: 1, warmupCount: 1, targetCount: 5)]
-    public class PrefixLookupBenchmark
+    public class KHAOSSBenchmarks
     {
 
         private string[] testKeys;
@@ -19,12 +19,34 @@ namespace KHAOSS.Benchmark
 
         public int N = 10_000;
 
-        public PrefixLookupBenchmark()
+
+
+        private DataEngine dataEngine;
+        private readonly Encoding utf8 = System.Text.Encoding.UTF8;
+        private string testKey = "1234567890";
+        private Document testDocument;
+
+        public KHAOSSBenchmarks()
         {
-            SetupTestData();
+            SetupPrefixLookup();
+            SetupDataEngine();
         }
 
-        private void SetupTestData()
+        private void SetupDataEngine()
+        {
+            dataEngine = DataEngine.CreateTransient();
+            dataEngine.StartAsync(CancellationToken.None).Wait();
+            testDocument = new Document { Version = 1, Body = utf8.GetBytes("Test Body") };
+            dataEngine.Store.Set(testKey, testDocument).Wait();
+
+            for (int i = 0; i < 10_000; i++)
+            {
+                var documentNew = new Document { Version = 1, Body = utf8.GetBytes("Test Body " + i.ToString()) };
+                dataEngine.Store.Set(i.ToString(), documentNew).Wait();
+            }
+        }
+
+        private void SetupPrefixLookup()
         {
             testKeys = new string[N];
             testBodyValues = new string[N];
@@ -63,12 +85,37 @@ namespace KHAOSS.Benchmark
             }
         }
 
-        private bool first = true;
-
         [Benchmark]
         public void PrefixLookup_Get()
         {
             var result = testPrefixLookup.Get("01234");
+        }
+
+        [Benchmark]
+        public async Task GetValueByKey()
+        {
+            var document = await dataEngine.Store.Get(testKey);
+        }
+
+        [Benchmark]
+        public async Task SetValueByKey()
+        {
+            testDocument.Version += 1;
+            await dataEngine.Store.Set(testKey, testDocument);
+        }
+
+        [Benchmark]
+        public async Task GetValueByKeyPrefix()
+        {
+            testDocument.Version += 1;
+            var results = await dataEngine.Store.GetByPrefix("123", false);
+            foreach(var result in results)
+            {
+                if (result.Key == null)
+                {
+                    throw new Exception();
+                }
+            }
         }
 
     }

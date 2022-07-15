@@ -148,7 +148,7 @@ namespace KHAOSS
             return processed;
         }
 
-        public async Task<Document> ProcessGet(string key)
+        public Task<Document> ProcessGet(string key)
         {
             var correlation = new GetCorrelation(key);
             if (!getChannel.Writer.TryWrite(correlation))
@@ -164,10 +164,10 @@ namespace KHAOSS
                     throw new Exception("Could not write to transaction processor get queue for an unknown reason");
                 }
             }
-            return await correlation.Task;
+            return correlation.Task;
         }
 
-        public async Task<IEnumerable<KeyValuePair<string, Document>>> ProcessGetByPrefix(string prefix, bool sortResults)
+        public Task<IEnumerable<KeyValuePair<string, Document>>> ProcessGetByPrefix(string prefix, bool sortResults)
         {
             var correlation = new GetByPrefixCorrelation(prefix, sortResults);
             if (!getByPrefixChannel.Writer.TryWrite(correlation))
@@ -183,7 +183,7 @@ namespace KHAOSS
                     throw new Exception("Could not write to transaction processor get queue for an unknown reason");
                 }
             }
-            return await correlation.Task;
+            return correlation.Task;
         }
 
         public async Task<TransactionResult> ProcessTransaction(Transaction transaction)

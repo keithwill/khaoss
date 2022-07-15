@@ -37,14 +37,14 @@ public class DataStore : IDataStore
         return result;
     }
 
-    public async Task<Document> Get(string key)
+    public Task<Document> Get(string key)
     {
-        return await transactionProcessor.ProcessGet(key);
+        return transactionProcessor.ProcessGet(key);
     }
 
-    public async Task<IEnumerable<KeyValuePair<string, Document>>> GetByPrefix(string prefix, bool sortResults)
+    public Task<IEnumerable<KeyValuePair<string, Document>>> GetByPrefix(string prefix, bool sortResults)
     {
-        return await transactionProcessor.ProcessGetByPrefix(prefix, sortResults);
+        return transactionProcessor.ProcessGetByPrefix(prefix, sortResults);
     }
 
     public async Task<TransactionResult> Remove(string key, int version)
