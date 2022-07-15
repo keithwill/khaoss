@@ -144,17 +144,56 @@ namespace KHAOSS.Test
             Assert.Equal(TransactionResult.FailedConcurrencyCheck, removeResult);
         }
 
-        //[Fact]
-        //public async Task Multi_CanProcessMultipleGetsAndSetsAsTransaction()
-        //{
-        //    throw new NotImplementedException();
-        //}
+        [Fact]
+        public async Task Multi_CanProcessMultipleSetsAsTransaction()
+        {
+            var key1 = "crud1";
+            var key2 = "crud2";
 
-        //[Fact]
-        //public async Task Multi_AllChangesRejectedOnAnyOldVersionDocument()
-        //{
-        //    throw new NotImplementedException();
-        //}
+            var document1 = new Document { Version = 0, Body = utf8.GetBytes("body1") };
+            var document2 = new Document { Version = 0, Body = utf8.GetBytes("body2") };
+
+            var changes = new DocumentChange[]
+            {
+                new DocumentChange { Key = key1, ChangeType = DocumentChangeType.Set, Document = document1 },
+                new DocumentChange { Key = key2, ChangeType = DocumentChangeType.Set, Document = document2 }
+            };
+
+            var actualTransactionResult = await fixture.Store.Multi(changes);
+            var expectedTransactionResult = TransactionResult.Complete;
+
+            Assert.Equal(expectedTransactionResult, actualTransactionResult);
+        }
+
+        /// <summary>
+        /// Saves a document to the database, then performs a multi set that includes an update to the same document but with an
+        /// older version number. Expected result is a TransactionResult.FailedConcurrencyCheck
+        /// </summary>
+        /// <returns></returns>
+        [Fact]
+        public async Task Multi_AllChangesRejectedOnAnyOldVersionDocument()
+        {
+
+            var key1 = "crud1";
+            var key2 = "crud2";
+
+            await AddDocument(key1, "body1", 0); // Saved as version 1 in db
+
+            var document1_version0 = new Document { Version = 0, Body = utf8.GetBytes("body1") };
+
+            var document2 = new Document { Version = 0, Body = utf8.GetBytes("body2") };
+
+            var changes = new DocumentChange[]
+            {
+                new DocumentChange { Key = key1, ChangeType = DocumentChangeType.Set, Document = document1_version0 },
+                new DocumentChange { Key = key2, ChangeType = DocumentChangeType.Set, Document = document2 }
+            };
+
+            var actualTransactionResult = await fixture.Store.Multi(changes);
+            var expectedTransactionResult = TransactionResult.FailedConcurrencyCheck;
+
+            Assert.Equal(expectedTransactionResult, actualTransactionResult);
+        }
 
 
     }
