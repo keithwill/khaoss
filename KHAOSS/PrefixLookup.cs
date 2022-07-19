@@ -38,8 +38,8 @@ namespace KHAOSS
 
         public void Add(string key, T value)
         {
-            var keyBytes = Node<T>.GetKeyBytes(key);
-            root.SetValue(keyBytes, 0, value);
+            var keyBytes = GetKeyAsUtf8ByteSpan(key);
+            root.SetValue(keyBytes, value);
         }
 
         public T Get(string key)

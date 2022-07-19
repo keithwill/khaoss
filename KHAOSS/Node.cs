@@ -26,21 +26,20 @@ namespace KHAOSS
             this.KeySegment = label;
         }
 
-        public void SetValue(byte[] key, int startingCharacter, T value)
+        public void SetValue(Span<byte> key, T value)
         {
 
-            var keySegmentToSetLength = key.Length - startingCharacter;
             //var setKey = System.Text.Encoding.UTF8.GetString(key, startingCharacter, keySegmentToSetLength);
             //var keySegmentString = System.Text.Encoding.UTF8.GetString(KeySegment);
             //Console.WriteLine($"Set '{setKey}' on '{keySegmentString}'");
 
 
             // Set on a child
-            var matchingChild = FindMatchingChild(key, startingCharacter, out var matchingLength);
+            var matchingChild = FindMatchingChild(key, out var matchingLength);
             if (matchingChild != null)
             {
                 //Console.WriteLine($"'{setKey}' matched {matchingLength} bytes on child '{matchingChild.Label}'");
-                if (matchingLength == keySegmentToSetLength)
+                if (matchingLength == key.Length)
                 {
                     if (matchingLength == matchingChild.KeySegment.Length)
                     {
@@ -56,7 +55,7 @@ namespace KHAOSS
                         // We matched the whole set key, but not the entire child key. We need to split the child key
                         //Console.WriteLine($"\t Splitting label '{matchingChild.Label}' to {matchingChild.Label.Substring(matchingLength)}");
                         matchingChild.SplitKeySegmentAtLength(matchingLength);
-                        matchingChild.SetValue(key, matchingLength, value);
+                        matchingChild.SetValue(key.Slice(matchingLength), value);
                     }
 
                 }
@@ -66,14 +65,14 @@ namespace KHAOSS
                     if (matchingLength == matchingChild.KeySegment.Length)
                     {
                         // and the entire child key
-                        matchingChild.SetValue(key, startingCharacter + matchingLength, value);
+                        matchingChild.SetValue(key.Slice(matchingLength), value);
                     }
                     else
                     {
                         // and only part of the child key
                         //Console.WriteLine($"\t Splitting label '{matchingChild.Label}' to {matchingChild.Label.Substring(matchingLength)}");
                         matchingChild.SplitKeySegmentAtLength(matchingLength);
-                        matchingChild.SetValue(key, startingCharacter + matchingLength, value);
+                        matchingChild.SetValue(key.Slice(matchingLength), value);
                     }                    
                 }
             }
@@ -82,7 +81,7 @@ namespace KHAOSS
                 // There were no matching children. 
                 // E.g. Key = "apple" and no child that even starts with 'a'. Add a new child node
                 //Console.WriteLine($"Creating '{setKey}' on '{Label}'");
-                var keySegment = GetKeySegment(key, startingCharacter);
+                var keySegment = GetKeySegment(key.ToArray(), 0);
                 var newChild = new Node<T>(this, keySegment);
                 newChild.Value = value;
 
@@ -224,13 +223,13 @@ namespace KHAOSS
         /// <param name="keySegment"></param>
         /// <param name="result">The matching child node</param>
         /// <returns>The number of matching bytes</returns>
-        private Node<T> FindMatchingChild(byte[] keySegment, int startingCharacter, out int bytesMatching)
+        private Node<T> FindMatchingChild(Span<byte> keySegment, out int bytesMatching)
         {
             if (Children != null)
             {
                 foreach(var child in Children)
                 {
-                    var matchingBytes = GetMatchingBytes(keySegment, startingCharacter, child.KeySegment);
+                    var matchingBytes = GetMatchingBytes(keySegment, child.KeySegment);
 
                     if (matchingBytes > 0)
                     {
