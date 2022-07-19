@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.IO;
+﻿using System.IO;
 
 namespace KHAOSS;
 
@@ -100,8 +99,8 @@ public class DataEngine : IDataEngine, IDisposable
 
     private void LoadRecordsFromStore(CancellationToken cancellationToken)
     {
-        Stopwatch sw = new();
-        sw.Start();
+        //Stopwatch sw = new();
+        //sw.Start();
         foreach (var record in this.transactionStore.LoadRecords(cancellationToken))
         {
             if (record.ChangeType == DocumentChangeType.Set)
@@ -120,8 +119,8 @@ public class DataEngine : IDataEngine, IDisposable
                 memoryStore.LoadDelete(record.Key, record.Version, record.SizeInStore);
             }
         }
-        sw.Stop();
-        Console.WriteLine($"Finished loading from store: took {sw.Elapsed.TotalSeconds}");
+        //sw.Stop();
+        //Console.WriteLine($"Finished loading from store: took {sw.Elapsed.TotalSeconds}");
     }
 
     private bool disposing = false;

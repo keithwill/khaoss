@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 namespace KHAOSS.Benchmark
 {
     [MemoryDiagnoser]
-    //[SimpleJob(launchCount: 1, warmupCount: 1, targetCount: 5)]
     public class KHAOSSBenchmarks
     {
 
@@ -36,14 +35,18 @@ namespace KHAOSS.Benchmark
         {
             dataEngine = DataEngine.CreateTransient();
             dataEngine.StartAsync(CancellationToken.None).Wait();
+            
             testDocument = new Document { Version = 1, Body = utf8.GetBytes("Test Body") };
             dataEngine.Store.Set(testKey, testDocument).Wait();
 
+            Task[] setResults = new Task[10_000];
             for (int i = 0; i < 10_000; i++)
             {
                 var documentNew = new Document { Version = 1, Body = utf8.GetBytes("Test Body " + i.ToString()) };
-                dataEngine.Store.Set(i.ToString(), documentNew).Wait();
+                setResults[i] = dataEngine.Store.Set(i.ToString(), documentNew);
             }
+            Task.WaitAll(setResults);
+
         }
 
         private void SetupPrefixLookup()
@@ -102,6 +105,13 @@ namespace KHAOSS.Benchmark
         {
             testDocument.Version += 1;
             await dataEngine.Store.Set(testKey, testDocument);
+        }
+
+        //[Benchmark]
+        public async Task NoOp()
+        {
+            // Only useful for determining CPU usage issues during database idle loops
+            await Task.Delay(1000);
         }
 
         [Benchmark]

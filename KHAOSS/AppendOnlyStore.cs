@@ -1,6 +1,5 @@
 ﻿using System.Diagnostics;
 using System.IO;
-using System.Runtime.CompilerServices;
 
 namespace KHAOSS;
 
@@ -44,7 +43,7 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
     {
         var startingLength = outputStream.Length;
         long endingLength = 0;
-        Console.WriteLine("Starting rewrite");
+        //Console.WriteLine("Starting rewrite");
         var transactionRecord = new TransactionRecord();
         transactionRecord.ChangeType = DocumentChangeType.Set;
 
@@ -84,7 +83,7 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
         }
 
         var elapsed = sw.Elapsed;
-        Console.WriteLine($"Rewrote db - {itemsRewritten} items in {elapsed.TotalMilliseconds} - FROM {startingLength} TO {endingLength}");
+        //Console.WriteLine($"Rewrote db - {itemsRewritten} items in {elapsed.TotalMilliseconds} - FROM {startingLength} TO {endingLength}");
 
     }
 
@@ -127,7 +126,7 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
     {
         // We only take an anemic approach to checking for load and write contention
 
-        var lengthBytes = new byte[4];
+        //var lengthBytes = new byte[4];
         var readBuffer = new byte[4096];
 
         while (!cancellationToken.IsCancellationRequested)
