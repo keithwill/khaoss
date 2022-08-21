@@ -14,10 +14,9 @@ namespace KHAOSS.Benchmark
         private string[] testKeys;
         private string[] testBodyValues;
         private PrefixLookup<string> testPrefixLookup;
-        private string prefixMatch = "0001";
+        private string prefixMatch = "001";
 
         public int N = 10_000;
-
 
 
         private DataEngine dataEngine;
@@ -39,8 +38,8 @@ namespace KHAOSS.Benchmark
             testDocument = new Document { Version = 1, Body = utf8.GetBytes("Test Body") };
             dataEngine.Store.Set(testKey, testDocument).Wait();
 
-            Task[] setResults = new Task[10_000];
-            for (int i = 0; i < 10_000; i++)
+            Task[] setResults = new Task[1000];
+            for (int i = 0; i < 1000; i++)
             {
                 var documentNew = new Document { Version = 1, Body = utf8.GetBytes("Test Body " + i.ToString()) };
                 setResults[i] = dataEngine.Store.Set(i.ToString(), documentNew);
@@ -107,11 +106,18 @@ namespace KHAOSS.Benchmark
             await dataEngine.Store.Set(testKey, testDocument);
         }
 
-        //[Benchmark]
+        [Benchmark]
+        public async Task SetValueByKeyNew()
+        {
+            testDocument.Version += 1;
+            await dataEngine.Store.Set(testKey, testDocument.Body, testDocument.Version);
+        }
+
+        [Benchmark]
         public async Task NoOp()
         {
             // Only useful for determining CPU usage issues during database idle loops
-            await Task.Delay(1000);
+            await Task.Delay(100);
         }
 
         [Benchmark]

@@ -15,16 +15,30 @@ public class DataStore : IDataStore
         this.transactionProcessor = transactionProcessor;
     }
 
-    public async Task<TransactionResult> Multi(DocumentChange[] changes)
+    public Task<TransactionResult> Multi(DocumentChange[] changes)
     {
         var transaction = new Transaction();
         transaction.DocumentChanges = changes;
-        var result = await transactionProcessor.ProcessTransaction(transaction);
-        return result;
+        return transactionProcessor.ProcessTransaction(transaction);
     }
 
-    public async Task<TransactionResult> Set(string key, Document document)
+    public Task<TransactionResult> Set(string key, Document document)
     {
+
+        var transaction = new Transaction();
+        var documentChange = new DocumentChange();
+        documentChange.AsSetChange(key, document);
+        transaction.DocumentChange = documentChange;
+        return transactionProcessor.ProcessTransaction(transaction);
+
+    }
+
+    public Task<TransactionResult> Set(string key, byte[] body, int version)
+    {
+        var document = new Document();
+        document.Body = body;
+        document.Version = version;
+        document.SizeInStore = 0;
 
         var transaction = new Transaction();
         var documentChange = new DocumentChange();
@@ -32,9 +46,8 @@ public class DataStore : IDataStore
         documentChange.AsSetChange(key, document);
         transaction.DocumentChange = documentChange;
 
-        var result = await transactionProcessor.ProcessTransaction(transaction);
+        return transactionProcessor.ProcessTransaction(transaction);
 
-        return result;
     }
 
     public Task<Document> Get(string key)
@@ -47,7 +60,7 @@ public class DataStore : IDataStore
         return transactionProcessor.ProcessGetByPrefix(prefix, sortResults);
     }
 
-    public async Task<TransactionResult> Remove(string key, int version)
+    public Task<TransactionResult> Remove(string key, int version)
     {
         var transaction = new Transaction();
         var documentChange = new DocumentChange();
@@ -55,8 +68,7 @@ public class DataStore : IDataStore
         documentChange.AsDeleteChange(key, version);
         transaction.DocumentChange = documentChange;
 
-        var result = await transactionProcessor.ProcessTransaction(transaction);
+        return transactionProcessor.ProcessTransaction(transaction);
 
-        return result;
     }
 }

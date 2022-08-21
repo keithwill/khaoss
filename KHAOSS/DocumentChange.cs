@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -18,6 +19,8 @@ namespace KHAOSS
         public DocumentChange()
         {
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void AsSetChange(string key, Document document)
         {
             Key = key;
@@ -44,6 +47,7 @@ namespace KHAOSS
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset()
         {
             this.Key = null;

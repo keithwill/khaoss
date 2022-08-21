@@ -61,7 +61,6 @@ public class MemoryStore : IMemoryStore
                     break;
                 case DocumentChangeType.Delete:
                     lookup.Remove(change.Key);
-
                     break;
                 default:
                     transaction.SetResult(TransactionResult.UnexpectedError, $"Unknown and unhandled change type detected: {change.ChangeType}");

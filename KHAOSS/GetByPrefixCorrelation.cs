@@ -18,7 +18,7 @@ namespace KHAOSS
         {
             this.prefix = prefix;
             this.sortResults = sortResults;
-            completionSource = new TaskCompletionSource<IEnumerable<KeyValuePair<string, Document>>>();
+            completionSource = new TaskCompletionSource<IEnumerable<KeyValuePair<string, Document>>>(TaskCreationOptions.RunContinuationsAsynchronously);
         }
 
         public void SetResult(IEnumerable<KeyValuePair<string, Document>> documents)

@@ -16,6 +16,7 @@ namespace KHAOSS.ConsoleTest
 
         static async Task Main(string[] args)
         {
+
             if (System.IO.File.Exists("test.db"))
             {
                 System.IO.File.Delete("test.db");
@@ -24,31 +25,62 @@ namespace KHAOSS.ConsoleTest
             engine = DataEngine.Create("test.db");
             await engine.StartAsync(CancellationToken.None);
 
-            for (int i = 1; i < 1_000; i++)
+            //var body = new byte[] { 1,2,3,4,5,6,7 };
+            //var totalCount = 1_000_000;
+            //Stopwatch sw = Stopwatch.StartNew();
+            //for (int i = 1; i < totalCount; i++)
+            //{
+            //    await engine.Store.Set(i.ToString(), body, 1);
+            //}
+            //sw.Stop();
+            //Console.WriteLine($"Saved {totalCount} in {totalCount / sw.Elapsed.TotalSeconds} ");
+
+            await TimeIterations("Set By Key", async (thread, iteration) => await SetByIteration(thread, iteration, engine.Store), 100, 100_000);
+            //await TimeIterations("Set Multi By Key", async (thread, iteration) => await SetMultiByIteration(thread, iteration, engine.Store, 1_000), 16, 1000);
+
+            Stopwatch sw = Stopwatch.StartNew();
+            await TimeIterations("Get By Key", async (thread, iteration) => await GetByIteration(thread, iteration, engine.Store), 100, 100_000);
+            sw.Stop();
+            Console.WriteLine("Sanity:" + (100 * 100_000) / sw.Elapsed.TotalSeconds);
+            return;
+        }
+
+        private static async Task SetMultiByIteration(int thread, int iteration, IDataStore store, int batchSize)
+        {
+            var bodyBytes = System.Text.Encoding.UTF8.GetBytes($"SomeText{iteration}");
+
+            if (iteration % batchSize == 0)
             {
-                await SetValue("garbageKey" + i.ToString(), "This is some garbagasas dfe,This is some garbage,Thisasd fasd fas is some garbage,d asdf asThis is some garbage1", 1);
-                await SetValue("garbageKey" + i.ToString(), "This is some garbagasas dfe,This is some garbage,Thisasd fasd fas is some garbage,d asdf asThis is some garbage2", 2);
-                await SetValue("garbageKey" + i.ToString(), "This is some garbagasas dfe,This is some garbage,Thisasd fasd fas is some garbage,d asdf asThis is some garbage2", 3);
-                await SetValue("garbageKey" + i.ToString(), "This is some garbagasas dfe,This is some garbage,Thisasd fasd fas is some garbage,d asdf asThis is some garbage2", 4);
+                DocumentChange[] changes = new DocumentChange[batchSize];
+                for(int i = 0; i < changes.Length; i++)
+                {
+                    changes[i] = new DocumentChange
+                    {
+                        ChangeType = DocumentChangeType.Set,
+                        Key = $"key{iteration + i}",
+                        Document = new Document { Version = iteration + i, Body = bodyBytes }
+                    };
+                }
+                var result = await store.Multi(changes);
+
             }
 
-            
-            var allDocs2 = await engine.Store.GetByPrefix("", false);
-            var allDocsCount2 = allDocs2.Count();
-            Console.WriteLine("ALL Docs Count: " + allDocsCount2);
+        }
 
+        private static byte[] bodyBytes = System.Text.Encoding.UTF8.GetBytes("Test");
 
-            await engine.ForceMaintenance();
-            engine.Dispose();
+        private static async Task SetByIteration(int thread, int iteration, IDataStore store)
+        {
+            var result = await store.Set($"key{iteration}", new Document { Version = iteration, Body = bodyBytes });
+        }
 
-            engine = DataEngine.Create("test.db");
-            await engine.StartAsync(CancellationToken.None);
-
-            var allDocs3 = await engine.Store.GetByPrefix("", false);
-            var allDocsCount3 = allDocs3.Count();
-            Console.WriteLine("ALL Docs After Maintenance Count: " + allDocsCount2);
-            Console.ReadKey();
-            return;
+        private static async Task GetByIteration(int thread, int iteration, IDataStore store)
+        {
+            var result = await store.Get($"key{iteration}");
+            if (result == null)
+            {
+                throw new Exception("Failed to get value");
+            }
         }
 
         private static async Task TimeIterations(string activityName, Func<int, int, Task> toDo, int threads, int iterations)

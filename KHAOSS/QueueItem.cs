@@ -7,18 +7,18 @@ using System.Threading.Tasks;
 
 namespace KHAOSS
 {
-    public class Document
+    public sealed class QueueItem
     {
-        public int Version { get; set; }
-        public byte[] Body { get; set; }
-        public int SizeInStore { get; set; }
+        public GetByPrefixCorrelation GetByPrefixCorrelation;
+        public GetCorrelation GetCorrelation;
+        public Transaction Transaction;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset()
         {
-            Version = 0;
-            Body = null;
-            SizeInStore = 0;
+            GetByPrefixCorrelation = null;
+            GetCorrelation = null;
+            Transaction = null;
         }
     }
 }

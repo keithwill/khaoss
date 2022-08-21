@@ -15,9 +15,8 @@ public class TransactionQueueProcessor : ITransactionProcessor
     private readonly IMemoryStore memoryStore;
     private Task processQueuesTask;
     private CancellationTokenSource processQueuesCancellationTokenSource;
-    private readonly Channel<GetCorrelation> getChannel;
-    private readonly Channel<Transaction> transactionChannel;
-    private readonly Channel<GetByPrefixCorrelation> getByPrefixChannel;
+    private readonly Channel<QueueItem> queueItemChannel;
+    private readonly NaiveObjectPool<QueueItem> queueItemPool = new();
 
 
     public TransactionQueueProcessor(
@@ -25,9 +24,7 @@ public class TransactionQueueProcessor : ITransactionProcessor
         IMemoryStore memoryStore
     )
     {
-        this.getChannel = Channel.CreateUnbounded<GetCorrelation>(new UnboundedChannelOptions { SingleReader = true });
-        this.transactionChannel = Channel.CreateUnbounded<Transaction>(new UnboundedChannelOptions { SingleReader = true });
-        this.getByPrefixChannel = Channel.CreateUnbounded<GetByPrefixCorrelation>(new UnboundedChannelOptions { SingleReader = true });
+        this.queueItemChannel = Channel.CreateUnbounded<QueueItem>(new UnboundedChannelOptions { SingleReader = true });
         this.transactionStore = transactionStore;
         this.memoryStore = memoryStore;
     }
@@ -39,91 +36,50 @@ public class TransactionQueueProcessor : ITransactionProcessor
             throw new InvalidOperationException("Already processing transactions");
         }
         this.processQueuesCancellationTokenSource = new CancellationTokenSource();
-        this.processQueuesTask = Task.Run(() => ProcessQueues());
+        this.processQueuesTask = Task.Run(async () => await ProcessQueues());
         return Task.CompletedTask;
     }
 
     public async Task Stop()
     {
         this.processQueuesCancellationTokenSource.Cancel();
-        this.transactionChannel.Writer.Complete();
-        this.getByPrefixChannel.Writer.Complete();
-        this.getChannel.Writer.Complete();
+        this.queueItemChannel.Writer.Complete();
         await processQueuesTask;
     }
 
-    private void ProcessQueues()
+    private async Task ProcessQueues()
     {
-        Stopwatch lastActiveTimer = new Stopwatch();
-        lastActiveTimer.Start();
 
         var cancellationToken = processQueuesCancellationTokenSource.Token;
-        while (cancellationToken.IsCancellationRequested == false)
-        {
-            int processed = 0;
-            while (getChannel.Reader.TryRead(out var getCorrelation))
-            {
-                var document = memoryStore.Get(getCorrelation.Key);
-                getCorrelation.SetResult(document);
-                processed++;
-            }
 
-            if (transactionChannel.Reader.TryRead(out var transaction))
+        await foreach(var item in queueItemChannel.Reader.ReadAllAsync(cancellationToken))
+        {
+            if (item.GetCorrelation != null)
             {
-                var transactionResult = memoryStore.ProcessTransaction(transaction);
+                var document = memoryStore.Get(item.GetCorrelation.Key);
+                item.GetCorrelation.SetResult(document);
+            }
+            else if (item.Transaction != null)
+            {
+                var transactionResult = memoryStore.ProcessTransaction(item.Transaction);
                 if (transactionResult == TransactionResult.Complete)
                 {
-                    transactionStore.WriteTransaction(transaction);
-                }
-                processed++;
-            }
-
-            if (getByPrefixChannel.Reader.TryRead(out var prefixCorrelation))
-            {
-                var prefixResult = memoryStore.GetByPrefix(prefixCorrelation.Prefix, prefixCorrelation.SortResults);
-                prefixCorrelation.SetResult(prefixResult);
-                processed++;
-            }
-
-            if (processed == 0)
-            {
-                if (lastActiveTimer.ElapsedMilliseconds > 200)
-                {
-                    WaitForQueuedItems(cancellationToken);
+                    transactionStore.WriteTransaction(item.Transaction);
                 }
             }
-            else
+            else if (item.GetByPrefixCorrelation != null)
             {
-                lastActiveTimer.Restart();
+                var prefixResult = memoryStore.GetByPrefix(item.GetByPrefixCorrelation.Prefix, item.GetByPrefixCorrelation.SortResults);
+                item.GetByPrefixCorrelation.SetResult(prefixResult);
             }
-
-        }
-    }
-
-    private readonly static Task[] waitTasks = new Task[3];
-
-
-    private void WaitForQueuedItems(CancellationToken cancellationToken)
-    {
-        //https://devblogs.microsoft.com/dotnet/an-introduction-to-system-threading-channels/#combinators
-        var waitCancellation = new CancellationTokenSource();
-        waitTasks[0] = getChannel.Reader.WaitToReadAsync(waitCancellation.Token).AsTask();
-        waitTasks[1] = getByPrefixChannel.Reader.WaitToReadAsync(waitCancellation.Token).AsTask();
-        waitTasks[2] = transactionChannel.Reader.WaitToReadAsync(waitCancellation.Token).AsTask();
-        try
-        {
-            Task.WaitAny(waitTasks, cancellationToken);
-            waitCancellation.Cancel();
-        }
-        catch (OperationCanceledException)
-        {
         }
     }
 
     public Task<Document> ProcessGet(string key)
     {
         var correlation = new GetCorrelation(key);
-        if (!getChannel.Writer.TryWrite(correlation))
+        var queueItem = new QueueItem { GetCorrelation = correlation };
+        if (!queueItemChannel.Writer.TryWrite(queueItem))
         {
             if (processQueuesCancellationTokenSource.IsCancellationRequested)
             {
@@ -142,7 +98,11 @@ public class TransactionQueueProcessor : ITransactionProcessor
     public Task<IEnumerable<KeyValuePair<string, Document>>> ProcessGetByPrefix(string prefix, bool sortResults)
     {
         var correlation = new GetByPrefixCorrelation(prefix, sortResults);
-        if (!getByPrefixChannel.Writer.TryWrite(correlation))
+        var queueItem = new QueueItem { GetByPrefixCorrelation = correlation };
+        //var queueItem = queueItemPool.Lease();
+        //queueItem.Reset();
+        //queueItem.GetByPrefixCorrelation = correlation;
+        if (!queueItemChannel.Writer.TryWrite(queueItem))
         {
             if (processQueuesCancellationTokenSource.IsCancellationRequested)
             {
@@ -156,11 +116,16 @@ public class TransactionQueueProcessor : ITransactionProcessor
             }
         }
         return correlation.Task;
+        //queueItemPool.Return(queueItem);
+        //return result;
     }
 
     public Task<TransactionResult> ProcessTransaction(Transaction transaction)
     {
-        if (!transactionChannel.Writer.TryWrite(transaction))
+        var queueItem = new QueueItem();
+        queueItem.Transaction = transaction;
+
+        if (!queueItemChannel.Writer.TryWrite(queueItem))
         {
             if (processQueuesCancellationTokenSource.IsCancellationRequested)
             {

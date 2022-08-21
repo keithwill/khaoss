@@ -23,11 +23,11 @@ public class DataEngine : IDataEngine, IDisposable
 
     public static DataEngine Create(string databaseFilePath)
     {
-        var file = new FileStream(databaseFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        var file = new FileStream(databaseFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 65536);
         var memoryStore = new MemoryStore();
         var transactionStore = new AppendOnlyStore(
             file,
-            () => new FileStream(Guid.NewGuid().ToString() + ".tmp", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None),
+            () => new FileStream(Guid.NewGuid().ToString() + ".tmp", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 65536),
             (outputStream, rewriteStream) =>
             {
                 var rewriteFileStream = (FileStream)rewriteStream;
@@ -38,7 +38,7 @@ public class DataEngine : IDataEngine, IDisposable
 
                 File.Replace(rewriteFilePath, databaseFilePath, null);
 
-                var newOutputStream = new FileStream(databaseFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                var newOutputStream = new FileStream(databaseFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 65536);
                 newOutputStream.Position = newOutputStream.Length;
                 newOutputStream.Flush();
 
@@ -132,8 +132,30 @@ public class DataEngine : IDataEngine, IDisposable
             return; // Already disposing
         }
         disposing = true;
-        this.transactionProcessor.Stop().Wait();
-        this.transactionStore.Dispose();
+        try
+        {
+            this.transactionProcessor.Stop().Wait();
+        }
+        catch(OperationCanceledException)
+        {
+        }
+        catch(AggregateException)
+        {
+
+        }
+
+        try
+        {
+            this.transactionStore.Dispose();
+        }
+        catch(OperationCanceledException)
+        {
+
+        }
+        catch (AggregateException)
+        {
+
+        }
     }
 
     public void RemoveAllDocuments()

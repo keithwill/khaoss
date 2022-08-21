@@ -111,7 +111,15 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
                            {
                                return;
                            }
-                           outputStream.Flush();
+                           if (outputStream is FileStream fileStream)
+                           {
+                               fileStream.Flush(true);
+                           }
+                           else
+                           {
+                               outputStream.Flush();
+                           }
+
                            unflushed = 0;
                        }
                    }
@@ -236,11 +244,6 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
                 }
             }
 
-
-            if (unflushed > 65536)
-            {
-                outputStream.Flush();
-            }
         }
 
     }
