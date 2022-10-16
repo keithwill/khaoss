@@ -35,13 +35,13 @@ namespace KHAOSS.Benchmark
             dataEngine = DataEngine.CreateTransient();
             dataEngine.StartAsync(CancellationToken.None).Wait();
             
-            testDocument = new Document { Version = 1, Body = utf8.GetBytes("Test Body") };
+            testDocument = new Document ( 1, utf8.GetBytes("Test Body") );
             dataEngine.Store.Set(testKey, testDocument).Wait();
 
             Task[] setResults = new Task[1000];
             for (int i = 0; i < 1000; i++)
             {
-                var documentNew = new Document { Version = 1, Body = utf8.GetBytes("Test Body " + i.ToString()) };
+                var documentNew = new Document ( 1, utf8.GetBytes("Test Body " + i.ToString()) );
                 setResults[i] = dataEngine.Store.Set(i.ToString(), documentNew);
             }
             Task.WaitAll(setResults);
@@ -102,15 +102,15 @@ namespace KHAOSS.Benchmark
         [Benchmark]
         public async Task SetValueByKey()
         {
-            testDocument.Version += 1;
-            await dataEngine.Store.Set(testKey, testDocument);
+            var newDocument = new Document(testDocument.Version + 1, testDocument.Body);
+            await dataEngine.Store.Set(testKey, newDocument);
         }
 
         [Benchmark]
         public async Task SetValueByKeyNew()
         {
-            testDocument.Version += 1;
-            await dataEngine.Store.Set(testKey, testDocument.Body, testDocument.Version);
+            var version = testDocument.Version + 1;
+            await dataEngine.Store.Set(testKey, testDocument.Body, version);
         }
 
         [Benchmark]
@@ -123,7 +123,6 @@ namespace KHAOSS.Benchmark
         [Benchmark]
         public async Task GetValueByKeyPrefix()
         {
-            testDocument.Version += 1;
             var results = await dataEngine.Store.GetByPrefix("123", false);
             foreach(var result in results)
             {

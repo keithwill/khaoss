@@ -22,7 +22,7 @@ namespace KHAOSS.Test
 
         private async Task< (Document Doc, TransactionResult Result) > AddDocument(string key, string body, int version)
         {
-            var document = new Document { Version = version, Body = utf8.GetBytes(body) };
+            var document = new Document ( version, utf8.GetBytes(body) );
             var result = await fixture.Store.Set(key, document);
             return (document, result);
         }
@@ -150,8 +150,8 @@ namespace KHAOSS.Test
             var key1 = "crud1";
             var key2 = "crud2";
 
-            var document1 = new Document { Version = 0, Body = utf8.GetBytes("body1") };
-            var document2 = new Document { Version = 0, Body = utf8.GetBytes("body2") };
+            var document1 = new Document ( 0, utf8.GetBytes("body1") );
+            var document2 = new Document ( 0, utf8.GetBytes("body2") );
 
             var changes = new DocumentChange[]
             {
@@ -179,9 +179,8 @@ namespace KHAOSS.Test
 
             await AddDocument(key1, "body1", 0); // Saved as version 1 in db
 
-            var document1_version0 = new Document { Version = 0, Body = utf8.GetBytes("body1") };
-
-            var document2 = new Document { Version = 0, Body = utf8.GetBytes("body2") };
+            var document1_version0 = new Document (0, utf8.GetBytes("body1") );
+            var document2 =          new Document (0, utf8.GetBytes("body2") );
 
             var changes = new DocumentChange[]
             {

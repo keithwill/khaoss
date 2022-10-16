@@ -93,7 +93,7 @@ public class TransactionRecord
         MemoryMarshal.Write(headerBytes.Slice(12, 1), ref changeType);
 
         stream.Write(headerBytes);
-
+        
         var keyBytes = Encoding.UTF8.GetBytes(Key);
 
         stream.Write(keyBytes);

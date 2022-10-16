@@ -105,10 +105,8 @@ public class DataEngine : IDataEngine, IDisposable
         {
             if (record.ChangeType == DocumentChangeType.Set)
             {
-                var document = new Document
+                var document = new Document(record.Version, record.Body)
                 {
-                    Body = record.Body,
-                    Version = record.Version,
                     SizeInStore = record.SizeInStore
                 };
 

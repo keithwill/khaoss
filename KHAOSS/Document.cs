@@ -9,16 +9,15 @@ namespace KHAOSS
 {
     public class Document
     {
-        public int Version { get; set; }
-        public byte[] Body { get; set; }
-        public int SizeInStore { get; set; }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Reset()
+        public Document(int version, byte[] body)
         {
-            Version = 0;
-            Body = null;
-            SizeInStore = 0;
+            Version = version;
+            Body = body;
         }
+
+        public int Version { get; internal set; }
+        public byte[] Body { get; internal set; }
+        internal int SizeInStore { get; set; }
+
     }
 }

@@ -42,9 +42,9 @@ public class TransactionQueueProcessor : ITransactionProcessor
 
     public async Task Stop()
     {
-        this.processQueuesCancellationTokenSource.Cancel();
-        this.queueItemChannel.Writer.Complete();
-        await processQueuesTask;
+            this.processQueuesCancellationTokenSource.Cancel();
+            this.queueItemChannel.Writer.Complete();
+            await processQueuesTask;
     }
 
     private async Task ProcessQueues()
@@ -52,27 +52,34 @@ public class TransactionQueueProcessor : ITransactionProcessor
 
         var cancellationToken = processQueuesCancellationTokenSource.Token;
 
-        await foreach(var item in queueItemChannel.Reader.ReadAllAsync(cancellationToken))
+        try
         {
-            if (item.GetCorrelation != null)
+            await foreach (var item in queueItemChannel.Reader.ReadAllAsync(cancellationToken))
             {
-                var document = memoryStore.Get(item.GetCorrelation.Key);
-                item.GetCorrelation.SetResult(document);
-            }
-            else if (item.Transaction != null)
-            {
-                var transactionResult = memoryStore.ProcessTransaction(item.Transaction);
-                if (transactionResult == TransactionResult.Complete)
+                if (item.GetCorrelation != null)
                 {
-                    transactionStore.WriteTransaction(item.Transaction);
+                    var document = memoryStore.Get(item.GetCorrelation.Key);
+                    item.GetCorrelation.SetResult(document);
+                }
+                else if (item.Transaction != null)
+                {
+                    var transactionResult = memoryStore.ProcessTransaction(item.Transaction);
+                    if (transactionResult == TransactionResult.Complete)
+                    {
+                        transactionStore.WriteTransaction(item.Transaction);
+                    }
+                }
+                else if (item.GetByPrefixCorrelation != null)
+                {
+                    var prefixResult = memoryStore.GetByPrefix(item.GetByPrefixCorrelation.Prefix, item.GetByPrefixCorrelation.SortResults);
+                    item.GetByPrefixCorrelation.SetResult(prefixResult);
                 }
             }
-            else if (item.GetByPrefixCorrelation != null)
-            {
-                var prefixResult = memoryStore.GetByPrefix(item.GetByPrefixCorrelation.Prefix, item.GetByPrefixCorrelation.SortResults);
-                item.GetByPrefixCorrelation.SetResult(prefixResult);
-            }
+        } 
+        catch (OperationCanceledException)
+        {
         }
+
     }
 
     public Task<Document> ProcessGet(string key)

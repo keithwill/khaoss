@@ -58,7 +58,7 @@ namespace KHAOSS.ConsoleTest
                     {
                         ChangeType = DocumentChangeType.Set,
                         Key = $"key{iteration + i}",
-                        Document = new Document { Version = iteration + i, Body = bodyBytes }
+                        Document = new Document (iteration + i, bodyBytes )
                     };
                 }
                 var result = await store.Multi(changes);
@@ -71,7 +71,7 @@ namespace KHAOSS.ConsoleTest
 
         private static async Task SetByIteration(int thread, int iteration, IDataStore store)
         {
-            var result = await store.Set($"key{iteration}", new Document { Version = iteration, Body = bodyBytes });
+            var result = await store.Set($"key{iteration}", new Document(iteration, bodyBytes) );
         }
 
         private static async Task GetByIteration(int thread, int iteration, IDataStore store)
@@ -133,7 +133,7 @@ namespace KHAOSS.ConsoleTest
         private static async Task SetValue(string key, string body, int version)
         {
             var bodyBytes = System.Text.Encoding.UTF8.GetBytes(body);
-            var result = await engine.Store.Set(key, new Document { Version = version, Body = bodyBytes });
+            var result = await engine.Store.Set(key, new Document (version, bodyBytes ));
         }
 
         private static async Task KHAOSSEngineSetKeyTransaction(int threadCount, int threadIteration)
@@ -147,7 +147,7 @@ namespace KHAOSS.ConsoleTest
 // Note that although the examples in this article show strings as sequences of characters, the type of the string elements can be chosen arbitrarily; for example, as a bit or byte of the string representation when using multibyte character encodings or Unicode.";
 
             var bodyBytes = System.Text.Encoding.UTF8.GetBytes(body);
-            var result = await engine.Store.Set(key, new Document { Version = 1, Body = bodyBytes });
+            var result = await engine.Store.Set(key, new Document (1, bodyBytes ));
         }
 
         private static async Task KHAOSSEngineGetKeyTransaction(int threadCount, int threadIteration)

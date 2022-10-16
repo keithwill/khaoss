@@ -35,9 +35,7 @@ public class DataStore : IDataStore
 
     public Task<TransactionResult> Set(string key, byte[] body, int version)
     {
-        var document = new Document();
-        document.Body = body;
-        document.Version = version;
+        var document = new Document(version, body);
         document.SizeInStore = 0;
 
         var transaction = new Transaction();
