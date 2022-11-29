@@ -18,11 +18,11 @@ public class AppendOnlyStore<T> : ITransactionStore<T>, IDisposable where T : IE
     private readonly Func<Stream, Stream, Stream> swapRewriteStreamCallback;
     private readonly IMemoryStore<T> memoryStore;
     private readonly JsonTypeInfo<T> jsonTypeInfo;
-    private TransactionRecord serializationRecord;
     private Task flushTask;
     private int unflushed = 0;
     private object writeLock = new object();
     private Task rewriteTask;
+    private bool isDisposing = false;
 
     private MemoryStream rewriteTailBuffer;
     private Stream rewriteStream;
@@ -40,27 +40,34 @@ public class AppendOnlyStore<T> : ITransactionStore<T>, IDisposable where T : IE
         this.swapRewriteStreamCallback = swapRewriteStreamCallback;
         this.memoryStore = memoryStore;
         this.jsonTypeInfo = jsonTypeInfo;
-        this.serializationRecord = new TransactionRecord();
     }
 
     private void Rewrite()
     {
         var startingLength = outputStream.Length;
         long endingLength = 0;
-        Console.WriteLine("Starting rewrite");
-        var transactionRecord = new TransactionRecord();
-        transactionRecord.ChangeType = DocumentChangeType.Set;
+        //Console.WriteLine("Starting rewrite");
 
         var itemsRewritten = 0;
 
         foreach (var item in memoryStore.GetByPrefix("", false))
         {
-            itemsRewritten++;
+            if (isDisposing)
+            {
+                if (rewriteStream is FileStream fs)
+                {
+                    string path = fs.Name;
+                    fs.Dispose();
+                    File.Delete(path);
+                    //Console.WriteLine("Cancelled rewrite");
+                }
+                return;
+            }
             if (itemsRewritten > 0)
             {
                 this.rewriteStream.WriteByte(LF);
             }
-            JsonSerializer.Serialize(outputStream, item, jsonTypeInfo);
+            JsonSerializer.Serialize(rewriteStream, item, jsonTypeInfo);
             if (rewriteTailBuffer.Length > 65536)
             {
                 lock (writeLock)
@@ -70,6 +77,7 @@ public class AppendOnlyStore<T> : ITransactionStore<T>, IDisposable where T : IE
                     rewriteTailBuffer.SetLength(0);
                 }
             }
+            itemsRewritten++;
         }
         rewriteStream.Flush();
 
@@ -87,7 +95,7 @@ public class AppendOnlyStore<T> : ITransactionStore<T>, IDisposable where T : IE
         }
 
         var elapsed = sw.Elapsed;
-        Console.WriteLine($"Rewrote db - {itemsRewritten} items in {elapsed.TotalMilliseconds} - FROM {startingLength} TO {endingLength}");
+        //Console.WriteLine($"Rewrote db - {itemsRewritten} items in {elapsed.TotalMilliseconds} - FROM {startingLength} TO {endingLength}");
 
     }
 
@@ -98,7 +106,7 @@ public class AppendOnlyStore<T> : ITransactionStore<T>, IDisposable where T : IE
         {
             flushTask = Task.Run(async () =>
            {
-               while (true)
+               while (!isDisposing)
                {
                    await Task.Delay(1000);
 
@@ -160,6 +168,7 @@ public class AppendOnlyStore<T> : ITransactionStore<T>, IDisposable where T : IE
 
     public void Dispose()
     {
+        isDisposing = true;
         if (outputStream == null)
         {
             return;
@@ -263,4 +272,6 @@ public class AppendOnlyStore<T> : ITransactionStore<T>, IDisposable where T : IE
         }
         return rewriteTask;
     }
+
+    public Task RewriteTask => rewriteTask;
 }

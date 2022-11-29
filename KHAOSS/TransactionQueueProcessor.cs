@@ -16,7 +16,6 @@ public class TransactionQueueProcessor<TBaseType> : ITransactionProcessor<TBaseT
     private Task processQueuesTask;
     private CancellationTokenSource processQueuesCancellationTokenSource;
     private readonly Channel<QueueItem<TBaseType>> queueItemChannel;
-    private readonly NaiveObjectPool<QueueItem<TBaseType>> queueItemPool = new();
 
 
     public TransactionQueueProcessor(

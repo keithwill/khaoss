@@ -14,6 +14,8 @@ namespace KHAOSS
     /// </summary>
     public class NoOpStore<T> : ITransactionStore<T> where T : class, IEntity
     {
+        public Task RewriteTask => throw new NotImplementedException();
+
         public void Dispose()
         {
         }

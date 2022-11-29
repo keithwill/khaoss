@@ -96,6 +96,10 @@ public class DataEngine<TEntity> : IDataEngine<TEntity>, IDisposable where TEnti
         this.disposing = true;
         await this.transactionProcessor.Stop();
         this.transactionStore.Dispose();
+        if (this.transactionStore.RewriteTask != null && !this.transactionStore.RewriteTask.IsCompleted)
+        {
+            await this.transactionStore.RewriteTask;
+        }
     }
 
     private void LoadRecordsFromStore(CancellationToken cancellationToken)

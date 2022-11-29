@@ -15,6 +15,7 @@ namespace KHAOSS
 
         void RemoveAllDocuments();
         Task ForceMaintenance();
+        Task RewriteTask { get; }
 
     }
 }

@@ -2,9 +2,9 @@
 
 public interface IEntity
 {
-    public string Key { get; init; }
-    public int Version { get; init; }
-    public bool Deleted { get; init; }
+    public string Key { get; }
+    public int Version { get;  }
+    public bool Deleted { get; }
 
     public IEntity WithVersion(int version);
 
