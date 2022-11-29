@@ -12,7 +12,8 @@ namespace KHAOSS.Test
     {
         // https://xunit.net/docs/shared-context
         private readonly DataEngineFixture fixture;
-        private readonly Encoding utf8 = System.Text.Encoding.UTF8;
+
+        private IDataStore<Entity> store => fixture.Store;
 
         public DataEngineTests(DataEngineFixture fixture)
         {
@@ -20,29 +21,28 @@ namespace KHAOSS.Test
             this.fixture.Engine.RemoveAllDocuments();
         }
 
-        private async Task< (Document Doc, TransactionResult Result) > AddDocument(string key, string body, int version)
-        {
-            var document = new Document ( version, utf8.GetBytes(body) );
-            var result = await fixture.Store.Set(key, document);
-            return (document, result);
-        }
-
         [Fact]
         public async Task CanCRUD()
         {
             var key = "crud";
+            var entity = new TestDocument (key, 0, false, "crud body");
+            var entitySaved = await store.Save(entity);
+            var entitySavedExpected = entity with {Version = 1};
+            
+            Assert.Equal(entitySavedExpected, entitySaved);
 
-            var document = (await AddDocument(key, "crud body", 0)).Doc;
-            var documentRetreived = await fixture.Store.Get(key);
-            Assert.Equal(document.Body, documentRetreived.Body);
+            var entityRetreived = await store.Get<TestDocument>(key);
+            Assert.Equal(entitySavedExpected, entityRetreived);
 
-            var newDocument = (await AddDocument(key, "crud body updated", documentRetreived.Version)).Doc;
-            var newDocumentRetrieved = await fixture.Store.Get(key);
-            Assert.Equal(newDocument.Body, newDocumentRetrieved.Body);
-            Assert.Equal(2, newDocumentRetrieved.Version);
+            var entityToUpdate = entityRetreived with {Body = "crud body updated"}; 
+            var expectedUpdatedEntity = entityToUpdate with {Version = 2};
+            var entityUpdated = await store.Save(entityToUpdate);
 
-            await fixture.Store.Remove(key, newDocumentRetrieved.Version);
-            var deletedDocument = await fixture.Store.Get(key);
+            Assert.Equal(expectedUpdatedEntity, entityUpdated);
+
+            var toDelete = entityUpdated with { Deleted = true };
+            await store.Save(toDelete);
+            var deletedDocument = await store.Get<TestDocument>(key);
             Assert.Null(deletedDocument);
         }
 
@@ -50,22 +50,28 @@ namespace KHAOSS.Test
         public async Task TracksDeadSpace()
         {
             string key = "key";
-            await AddDocument(key, "Contents1", 0);
-            await AddDocument(key, "Contents2", 1);
-            var deadSpace = this.fixture.Engine.DeadSpace;
+            var entity1 = new TestDocument(key, 0, false, "some contents1");
+            await store.Save(entity1);
+            var entity2 = entity1 with { Body = "some contents2", Version = 1};
+            await store.Save(entity2);
+            var deadSpace = this.fixture.Engine.DeadEntityCount;
             var deadSpaceGreaterThanZero = deadSpace > 0;
             Assert.True(deadSpaceGreaterThanZero);
         }
 
-        [Fact]
+        [Fact] 
         public async Task CanMaintainDeadSpace()
         {
             string key = "key";
-            await AddDocument(key, "Contents1", 0);
-            await AddDocument(key, "Contents2", 1);
-            var deadSpaceBeforeMaintenance = this.fixture.Engine.DeadSpace;
+            var entity1 = new TestDocument(key, 0, false, "some contents1");
+            await store.Save(entity1);
+            var entity2 = entity1 with { Body = "some contents2", Version = 1 };
+            await store.Save(entity2);
+            var deadSpace = this.fixture.Engine.DeadEntityCount;
+
+            var deadSpaceBeforeMaintenance = this.fixture.Engine.DeadEntityCount;
             await this.fixture.Engine.ForceMaintenance();
-            var deadSpaceAfterMaintenance = this.fixture.Engine.DeadSpace;
+            var deadSpaceAfterMaintenance = this.fixture.Engine.DeadEntityCount;
             var deadSpaceAfterMaintenanceIsLess = deadSpaceBeforeMaintenance > deadSpaceAfterMaintenance;
             Assert.True(deadSpaceAfterMaintenanceIsLess);
         }
@@ -76,10 +82,9 @@ namespace KHAOSS.Test
             string key = "prefix";
             string prefix = "pre";
             string body = "body";
-
-            var expectedDocument = (await AddDocument(key, body, 0)).Doc;
-            var prefixResults = await fixture.Store.GetByPrefix(prefix, false);
-            var firstMatchByPrefix = prefixResults.FirstOrDefault().Value;
+            var expectedDocument = await store.Save(new TestDocument(key, 0, false, body));
+            var prefixResults = await store.GetByPrefix<TestDocument>(prefix, false);
+            var firstMatchByPrefix = prefixResults.FirstOrDefault();
             Assert.Equal(expectedDocument, firstMatchByPrefix);
         }
 
@@ -90,9 +95,9 @@ namespace KHAOSS.Test
             string prefix = "prefix";
             string body = "body";
 
-            var expectedDocument = (await AddDocument(key, body, 0)).Doc;
-            var prefixResults = await fixture.Store.GetByPrefix(prefix, false);
-            var firstMatchByPrefix = prefixResults.FirstOrDefault().Value;
+            var expectedDocument = await store.Save(new TestDocument(key, 0, false, body));
+            var prefixResults = await store.GetByPrefix<TestDocument>(prefix, false);
+            var firstMatchByPrefix = prefixResults.FirstOrDefault();
             Assert.Equal(expectedDocument, firstMatchByPrefix);
         }
 
@@ -103,9 +108,9 @@ namespace KHAOSS.Test
             string prefix = "prefix";
             string body = "body";
 
-            var expectedDocument = (await AddDocument(key, body, 0)).Doc;
-            var prefixResults = await fixture.Store.GetByPrefix(prefix, true);
-            var firstMatchByPrefix = prefixResults.FirstOrDefault().Value;
+            var expectedDocument = await store.Save(new TestDocument(key, 0, false, body));
+            var prefixResults = await store.GetByPrefix<TestDocument>(prefix, false);
+            var firstMatchByPrefix = prefixResults.FirstOrDefault();
             Assert.Equal(expectedDocument, firstMatchByPrefix);
         }
 
@@ -115,83 +120,74 @@ namespace KHAOSS.Test
             var key = "crud";
             var notKey = "CrUd";
 
-            var document = (await AddDocument(key, "crud body", 0)).Doc;
-            var documentFromMixedCaseKey = await fixture.Store.Get(notKey);
 
-            Assert.NotEqual(document, documentFromMixedCaseKey);
+            await store.Save(new TestDocument(key, 0, false, "doc1"));
+            await store.Save(new TestDocument(notKey, 0, false, "doc2"));
+
+            var doc1 = await store.Get<TestDocument>(key);
+            var doc2 = await store.Get<TestDocument>(notKey);
+
+            Assert.NotEqual(doc1.Body, doc2.Body);
         }
 
         [Fact]
         public async Task Set_FailsWithOldVersionDocument()
         {
             var key = "crud";
-            var document = (await AddDocument(key, "crud body", 0)).Doc;
-            
-            var addUpdatedDoc = await AddDocument(key, "crud body new", 0);
-
-            Assert.Equal(TransactionResult.FailedConcurrencyCheck, addUpdatedDoc.Result);
-           
+            var version1 = await store.Save(new TestDocument(key, 0, false, "doc1"));
+            var version0 = version1 with { Version = 0 };
+            await Assert.ThrowsAsync<OptimisticConcurrencyException>(async () => await store.Save(version0));
         }
 
         [Fact]
         public async Task Delete_FailsWithOldVersionDocument()
         {
             var key = "crud";
-            var document = (await AddDocument(key, "crud body", 0)).Doc;
-
-            var removeResult = await fixture.Store.Remove(key, 0);
-
-            Assert.Equal(TransactionResult.FailedConcurrencyCheck, removeResult);
+            var version1 = await store.Save(new TestDocument(key, 0, false, "doc1"));
+            var version0 = version1 with { Deleted = true, Version = 0 };
+            await Assert.ThrowsAsync<OptimisticConcurrencyException>(async () => await store.Save(version0));
         }
 
         [Fact]
         public async Task Multi_CanProcessMultipleSetsAsTransaction()
         {
-            var key1 = "crud1";
-            var key2 = "crud2";
 
-            var document1 = new Document ( 0, utf8.GetBytes("body1") );
-            var document2 = new Document ( 0, utf8.GetBytes("body2") );
-
-            var changes = new DocumentChange[]
+            var changes = new Entity[]
             {
-                new DocumentChange { Key = key1, ChangeType = DocumentChangeType.Set, Document = document1 },
-                new DocumentChange { Key = key2, ChangeType = DocumentChangeType.Set, Document = document2 }
+                new TestDocument("1", 0, false, "body1"),
+                new TestDocument("2", 0, false, "body2"),
+                new Entity("3", 0, false)
             };
 
-            var actualTransactionResult = await fixture.Store.Multi(changes);
-            var expectedTransactionResult = TransactionResult.Complete;
+            var updated = await store.Save(changes);
 
-            Assert.Equal(expectedTransactionResult, actualTransactionResult);
+            var expected = changes.Length;
+            var actual = updated.Length;
+
+            Assert.Equal(expected, actual);
         }
 
         /// <summary>
         /// Saves a document to the database, then performs a multi set that includes an update to the same document but with an
-        /// older version number. Expected result is a TransactionResult.FailedConcurrencyCheck
+        /// older version number. Expected result is a failure
         /// </summary>
         /// <returns></returns>
         [Fact]
         public async Task Multi_AllChangesRejectedOnAnyOldVersionDocument()
         {
 
-            var key1 = "crud1";
-            var key2 = "crud2";
-
-            await AddDocument(key1, "body1", 0); // Saved as version 1 in db
-
-            var document1_version0 = new Document (0, utf8.GetBytes("body1") );
-            var document2 =          new Document (0, utf8.GetBytes("body2") );
-
-            var changes = new DocumentChange[]
+            Entity[] changes = new Entity[]
             {
-                new DocumentChange { Key = key1, ChangeType = DocumentChangeType.Set, Document = document1_version0 },
-                new DocumentChange { Key = key2, ChangeType = DocumentChangeType.Set, Document = document2 }
+                new TestDocument("1", 0, false, "body1"),
+                new TestDocument("2", 0, false, "body2"),
+                new Entity("3", 0, false)
             };
 
-            var actualTransactionResult = await fixture.Store.Multi(changes);
-            var expectedTransactionResult = TransactionResult.FailedConcurrencyCheck;
+            var updated = await store.Save(changes);
 
-            Assert.Equal(expectedTransactionResult, actualTransactionResult);
+            updated[0] = updated[0] with { Version = 0 }; // Old version number
+
+            await Assert.ThrowsAsync<OptimisticConcurrencyException>(async() => await store.Save(updated));
         }
 
 

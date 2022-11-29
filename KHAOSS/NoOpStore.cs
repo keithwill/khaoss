@@ -12,13 +12,13 @@ namespace KHAOSS
     /// A transaction store that doesn't actually store anything
     /// passed to it. Only useful for testing.
     /// </summary>
-    public class NoOpStore : ITransactionStore
+    public class NoOpStore<T> : ITransactionStore<T> where T : class, IEntity
     {
         public void Dispose()
         {
         }
 
-        public IEnumerable<TransactionRecord> LoadRecords(CancellationToken cancellationToken = default)
+        public IEnumerable<T> LoadRecords(CancellationToken cancellationToken = default)
         {
             yield break;
         }
@@ -31,10 +31,10 @@ namespace KHAOSS
         {
         }
 
-        public void WriteTransaction(Transaction transaction)
+        public void WriteTransaction(Transaction<T> transaction)
         {
             //NoOp
-            transaction.SetResult(TransactionResult.Complete);
+            transaction.Complete();
         }
 
         public Task ForceMaintenance()

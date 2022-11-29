@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 
 namespace KHAOSS
 {
-    public class GetByPrefixCorrelation
+    public class GetByPrefixCorrelation<T> where T : IEntity
     {
         private readonly string prefix;
 
-        private TaskCompletionSource<IEnumerable<KeyValuePair<string, Document>>> completionSource;
+        private TaskCompletionSource<IEnumerable<T>> completionSource;
         public string Prefix => this.prefix;
         private bool sortResults;
         public bool SortResults => sortResults;
@@ -18,15 +18,15 @@ namespace KHAOSS
         {
             this.prefix = prefix;
             this.sortResults = sortResults;
-            completionSource = new TaskCompletionSource<IEnumerable<KeyValuePair<string, Document>>>(TaskCreationOptions.RunContinuationsAsynchronously);
+            completionSource = new TaskCompletionSource<IEnumerable<T>>(TaskCreationOptions.RunContinuationsAsynchronously);
         }
 
-        public void SetResult(IEnumerable<KeyValuePair<string, Document>> documents)
+        public void SetResult(IEnumerable<T> documents)
         {
             completionSource.SetResult(documents);
         }
 
-        public Task<IEnumerable<KeyValuePair<string, Document>>> Task => completionSource.Task;
+        public Task<IEnumerable<T>> Task => completionSource.Task;
 
     }
 }

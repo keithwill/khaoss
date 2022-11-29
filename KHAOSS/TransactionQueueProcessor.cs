@@ -9,22 +9,22 @@ namespace KHAOSS;
 /// Responsible for processing each transaction and passing the results to both
 /// any memory cache and transaction store.
 /// </summary>
-public class TransactionQueueProcessor : ITransactionProcessor
+public class TransactionQueueProcessor<TBaseType> : ITransactionProcessor<TBaseType> where TBaseType : IEntity
 {
-    private readonly ITransactionStore transactionStore;
-    private readonly IMemoryStore memoryStore;
+    private readonly ITransactionStore<TBaseType> transactionStore;
+    private readonly IMemoryStore<TBaseType> memoryStore;
     private Task processQueuesTask;
     private CancellationTokenSource processQueuesCancellationTokenSource;
-    private readonly Channel<QueueItem> queueItemChannel;
-    private readonly NaiveObjectPool<QueueItem> queueItemPool = new();
+    private readonly Channel<QueueItem<TBaseType>> queueItemChannel;
+    private readonly NaiveObjectPool<QueueItem<TBaseType>> queueItemPool = new();
 
 
     public TransactionQueueProcessor(
-        ITransactionStore transactionStore,
-        IMemoryStore memoryStore
+        ITransactionStore<TBaseType> transactionStore,
+        IMemoryStore<TBaseType> memoryStore
     )
     {
-        this.queueItemChannel = Channel.CreateUnbounded<QueueItem>(new UnboundedChannelOptions { SingleReader = true });
+        this.queueItemChannel = Channel.CreateUnbounded<QueueItem<TBaseType>>(new UnboundedChannelOptions { SingleReader = true });
         this.transactionStore = transactionStore;
         this.memoryStore = memoryStore;
     }
@@ -63,8 +63,9 @@ public class TransactionQueueProcessor : ITransactionProcessor
                 }
                 else if (item.Transaction != null)
                 {
-                    var transactionResult = memoryStore.ProcessTransaction(item.Transaction);
-                    if (transactionResult == TransactionResult.Complete)
+                    var appliedInMemory = memoryStore.ProcessTransaction(item.Transaction);
+
+                    if (appliedInMemory)
                     {
                         transactionStore.WriteTransaction(item.Transaction);
                     }
@@ -82,10 +83,10 @@ public class TransactionQueueProcessor : ITransactionProcessor
 
     }
 
-    public Task<Document> ProcessGet(string key)
+    public Task<TBaseType> ProcessGet(string key)
     {
-        var correlation = new GetCorrelation(key);
-        var queueItem = new QueueItem { GetCorrelation = correlation };
+        var correlation = new GetCorrelation<TBaseType>(key);
+        var queueItem = new QueueItem<TBaseType> { GetCorrelation = correlation };
         if (!queueItemChannel.Writer.TryWrite(queueItem))
         {
             if (processQueuesCancellationTokenSource.IsCancellationRequested)
@@ -102,10 +103,10 @@ public class TransactionQueueProcessor : ITransactionProcessor
         return correlation.Task;
     }
 
-    public Task<IEnumerable<KeyValuePair<string, Document>>> ProcessGetByPrefix(string prefix, bool sortResults)
+    public Task<IEnumerable<TBaseType>> ProcessGetByPrefix(string prefix, bool sortResults)
     {
-        var correlation = new GetByPrefixCorrelation(prefix, sortResults);
-        var queueItem = new QueueItem { GetByPrefixCorrelation = correlation };
+        var correlation = new GetByPrefixCorrelation<TBaseType>(prefix, sortResults);
+        var queueItem = new QueueItem<TBaseType> { GetByPrefixCorrelation = correlation };
         //var queueItem = queueItemPool.Lease();
         //queueItem.Reset();
         //queueItem.GetByPrefixCorrelation = correlation;
@@ -127,9 +128,9 @@ public class TransactionQueueProcessor : ITransactionProcessor
         //return result;
     }
 
-    public Task<TransactionResult> ProcessTransaction(Transaction transaction)
+    public Task ProcessTransaction(Transaction<TBaseType> transaction)
     {
-        var queueItem = new QueueItem();
+        var queueItem = new QueueItem<TBaseType>();
         queueItem.Transaction = transaction;
 
         if (!queueItemChannel.Writer.TryWrite(queueItem))

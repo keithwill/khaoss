@@ -54,7 +54,7 @@ namespace KHAOSS
             this.root.Children = null;
         }
 
-        public IEnumerable<KeyValuePair<string, T>> GetByPrefix(string keyPrefix, bool sort = false)
+        public IEnumerable<KeyValuePair<string, T>> GetKeyValuePairByPrefix(string keyPrefix, bool sort = false)
         {
             if (!sort)
             {
@@ -64,10 +64,31 @@ namespace KHAOSS
             return GetByPrefixSorted(keyPrefix);
 
         }
-        private List<Node<T>> results = new();
+
+        public IEnumerable<T> GetByPrefixValues(string keyPrefix)
+        {
+            var results = new List<Node<T>>();
+
+            var keyPrefixSpan = GetKeyAsUtf8ByteSpan(keyPrefix);
+
+            if (keyPrefix == string.Empty)
+            {
+                root.GetAllValuesAtOrBelow(results);
+            }
+            else
+            {
+                root.GetValuesByPrefix(keyPrefixSpan, results);
+            }
+            foreach(var value in results)
+            {
+                yield return value.Value;
+            }
+        }
+
         private IEnumerable<KeyValuePair<string, T>> GetByPrefixUnsorted(string keyPrefix)
         {
-            results.Clear();
+            var results = new List<Node<T>>();
+            
             var keyPrefixSpan = GetKeyAsUtf8ByteSpan(keyPrefix);
 
             if (keyPrefix == string.Empty)

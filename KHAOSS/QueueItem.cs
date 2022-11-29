@@ -7,11 +7,11 @@ using System.Threading.Tasks;
 
 namespace KHAOSS
 {
-    public sealed class QueueItem
+    public sealed class QueueItem<T> where T : IEntity
     {
-        public GetByPrefixCorrelation GetByPrefixCorrelation;
-        public GetCorrelation GetCorrelation;
-        public Transaction Transaction;
+        public GetByPrefixCorrelation<T> GetByPrefixCorrelation;
+        public GetCorrelation<T> GetCorrelation;
+        public Transaction<T> Transaction;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Reset()

@@ -3,12 +3,12 @@ using System.Threading.Tasks;
 
 namespace KHAOSS
 {
-    public interface ITransactionProcessor
+    public interface ITransactionProcessor<T> where T : IEntity
     {
 
-        Task<TransactionResult> ProcessTransaction(Transaction transaction);
-        Task<Document> ProcessGet(string key);
-        Task<IEnumerable<KeyValuePair<string, Document>>> ProcessGetByPrefix(string prefix, bool sortResults);
+        Task ProcessTransaction(Transaction<T> transaction);
+        Task<T> ProcessGet(string key);
+        Task<IEnumerable<T>> ProcessGetByPrefix(string prefix, bool sortResults);
         Task Start();
         Task Stop();
     }

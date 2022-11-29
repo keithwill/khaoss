@@ -7,6 +7,9 @@ using System.Threading.Tasks;
 
 namespace KHAOSS.Benchmark
 {
+
+
+
     [MemoryDiagnoser]
     public class KHAOSSBenchmarks
     {
@@ -19,10 +22,10 @@ namespace KHAOSS.Benchmark
         public int N = 10_000;
 
 
-        private DataEngine dataEngine;
+        private DataEngine<Entity> dataEngine;
         private readonly Encoding utf8 = System.Text.Encoding.UTF8;
         private string testKey = "1234567890";
-        private Document testDocument;
+        private Entity testDocument;
 
         public KHAOSSBenchmarks()
         {
@@ -32,17 +35,16 @@ namespace KHAOSS.Benchmark
 
         private void SetupDataEngine()
         {
-            dataEngine = DataEngine.CreateTransient();
+            dataEngine = DataEngine<Entity>.CreateTransient(SourceGenerationContext.Default.Entity);
             dataEngine.StartAsync(CancellationToken.None).Wait();
-            
-            testDocument = new Document ( 1, utf8.GetBytes("Test Body") );
-            dataEngine.Store.Set(testKey, testDocument).Wait();
+
+            testDocument = new Entity(testKey, 0, false, "test document");
+            testDocument = dataEngine.Store.Save(testDocument).Result;
 
             Task[] setResults = new Task[1000];
             for (int i = 0; i < 1000; i++)
             {
-                var documentNew = new Document ( 1, utf8.GetBytes("Test Body " + i.ToString()) );
-                setResults[i] = dataEngine.Store.Set(i.ToString(), documentNew);
+                setResults[i] = dataEngine.Store.Save(new Entity(i.ToString(), 0, false, $"Test Body {i}"));
             }
             Task.WaitAll(setResults);
 
@@ -57,7 +59,7 @@ namespace KHAOSS.Benchmark
             string keyFormatString = "";
             int formatStringLength = N.ToString().Length;
 
-            for(int i = 0; i < formatStringLength; i++)
+            for (int i = 0; i < formatStringLength; i++)
             {
                 keyFormatString += "0";
             }
@@ -77,8 +79,8 @@ namespace KHAOSS.Benchmark
         [Benchmark]
         public void PrefixLookup_PrefixMatch()
         {
-            var result = testPrefixLookup.GetByPrefix(prefixMatch);
-            foreach(var results in result)
+            var result = testPrefixLookup.GetKeyValuePairByPrefix(prefixMatch);
+            foreach (var results in result)
             {
                 if (results.Key == null)
                 {
@@ -96,22 +98,15 @@ namespace KHAOSS.Benchmark
         [Benchmark]
         public async Task GetValueByKey()
         {
-            var document = await dataEngine.Store.Get(testKey);
+            var document = await dataEngine.Store.Get<Entity>(testKey);
         }
 
         [Benchmark]
         public async Task SetValueByKey()
         {
-            var newDocument = new Document(testDocument.Version + 1, testDocument.Body);
-            await dataEngine.Store.Set(testKey, newDocument);
+            testDocument = await dataEngine.Store.Save(testDocument);
         }
 
-        [Benchmark]
-        public async Task SetValueByKeyNew()
-        {
-            var version = testDocument.Version + 1;
-            await dataEngine.Store.Set(testKey, testDocument.Body, version);
-        }
 
         [Benchmark]
         public async Task NoOp()
@@ -123,8 +118,8 @@ namespace KHAOSS.Benchmark
         [Benchmark]
         public async Task GetValueByKeyPrefix()
         {
-            var results = await dataEngine.Store.GetByPrefix("123", false);
-            foreach(var result in results)
+            var results = await dataEngine.Store.GetByPrefix<Entity>("123", false);
+            foreach (var result in results)
             {
                 if (result.Key == null)
                 {

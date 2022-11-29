@@ -7,45 +7,46 @@ using System.Threading.Tasks;
 
 namespace KHAOSS
 {
-    public class Transaction
+    public class Transaction<T> where T : IEntity
     {
-        public DocumentChange DocumentChange;
-        public DocumentChange[] DocumentChanges;
-        private TaskCompletionSource<TransactionResult> taskCompletionSource = new TaskCompletionSource<TransactionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-
+        private TaskCompletionSource taskCompletionSource = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        private T entity;
+        private T[] entities;
         private TransactionResult transactionResult;
+        private string errorMessage = null;
 
+        private bool passedConcurrencyCheck = false;
+
+        public bool PassedConcurrencyCheck { get => passedConcurrencyCheck; set => passedConcurrencyCheck = value; }
+
+        public T Entity { get => entity; internal set => entity = value; }
+        public T[] Entities { get => entities; internal set => entities = value; }
         public TransactionResult TransactionResult => transactionResult;
         public bool IsComplete => taskCompletionSource.Task.IsCompleted;
 
-        private string errorMessage = null;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Reset()
+        public Transaction(T entity)
         {
-            this.DocumentChange = null;
-            this.DocumentChanges = null;
-            this.taskCompletionSource = null;
-            this.errorMessage = null;
-            this.taskCompletionSource = new TaskCompletionSource<TransactionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            Entity = entity;
         }
 
-        public string ErrorMessage => errorMessage;
-        public Transaction()
+        public Transaction(T[] entities)
         {
-
+            Entities = entities;
         }
 
-        public bool IsSingleChange => this.DocumentChange != null;
+        public bool IsSingleChange => this.Entity != null;
 
-        public void SetResult(TransactionResult result, string errorMessage = null)
+        public void Complete()
         {
-            this.errorMessage = errorMessage;
-            this.transactionResult = result;
-            this.taskCompletionSource.SetResult(result);
+            this.taskCompletionSource.SetResult();
         }
 
-        public Task<TransactionResult> Task => taskCompletionSource.Task;
+        public void SetError(Exception ex)
+        {
+            this.taskCompletionSource.SetException(ex);
+        }
+
+        public Task Task => taskCompletionSource.Task;
 
     }
 }

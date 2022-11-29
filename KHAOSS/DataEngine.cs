@@ -1,31 +1,33 @@
 ﻿using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace KHAOSS;
 
-public class DataEngine : IDataEngine, IDisposable
+public class DataEngine<TEntity> : IDataEngine<TEntity>, IDisposable where TEntity : class, IEntity
 {
-    private readonly ITransactionProcessor transactionProcessor;
-    private readonly ITransactionStore transactionStore;
-    private readonly IMemoryStore memoryStore;
-    private readonly IDataStore store;
+    private readonly ITransactionProcessor<TEntity> transactionProcessor;
+    private readonly ITransactionStore<TEntity> transactionStore;
+    private readonly IMemoryStore<TEntity> memoryStore;
+    private readonly IDataStore<TEntity> store;
 
     public DataEngine(
-        ITransactionProcessor transactionProcessor,
-        ITransactionStore transactionStore,
-        IMemoryStore memoryStore
+        ITransactionProcessor<TEntity> transactionProcessor,
+        ITransactionStore<TEntity> transactionStore,
+        IMemoryStore<TEntity> memoryStore
         )
     {
         this.transactionProcessor = transactionProcessor;
         this.transactionStore = transactionStore;
         this.memoryStore = memoryStore;
-        this.store = new DataStore(transactionProcessor);
+        this.store = new DataStore<TEntity>(transactionProcessor);
     }
 
-    public static DataEngine Create(string databaseFilePath)
+    public static DataEngine<TEntity> Create(string databaseFilePath, JsonTypeInfo<TEntity> jsonTypeInfo)
     {
         var file = new FileStream(databaseFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 65536);
-        var memoryStore = new MemoryStore();
-        var transactionStore = new AppendOnlyStore(
+        var memoryStore = new MemoryStore<TEntity>();
+        var transactionStore = new AppendOnlyStore<TEntity>(
             file,
             () => new FileStream(Guid.NewGuid().ToString() + ".tmp", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 65536),
             (outputStream, rewriteStream) =>
@@ -37,28 +39,28 @@ public class DataEngine : IDataEngine, IDisposable
                 outputStream.Close();
 
                 File.Replace(rewriteFilePath, databaseFilePath, null);
-
                 var newOutputStream = new FileStream(databaseFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 65536);
                 newOutputStream.Position = newOutputStream.Length;
                 newOutputStream.Flush();
 
                 return newOutputStream;
             },
-            memoryStore
+            memoryStore,
+            jsonTypeInfo
             );
-        var transactionProcessor = new TransactionQueueProcessor(transactionStore, memoryStore);
-        return new DataEngine(
+        var transactionProcessor = new TransactionQueueProcessor<TEntity>(transactionStore, memoryStore);
+        return new DataEngine<TEntity>(
             transactionProcessor,
             transactionStore,
             memoryStore
         );
     }
 
-    public static DataEngine CreateTransient()
+    public static DataEngine<TEntity> CreateTransient(JsonTypeInfo<TEntity> jsonTypeInfo)
     {
         var memoryStream = new MemoryStream();
-        var memoryStore = new MemoryStore();
-        var transactionStore = new AppendOnlyStore(
+        var memoryStore = new MemoryStore<TEntity>();
+        var transactionStore = new AppendOnlyStore<TEntity>(
             memoryStream,
             () => new MemoryStream(),
             (outputStream, rewriteStream) =>
@@ -69,19 +71,18 @@ public class DataEngine : IDataEngine, IDisposable
 
                 return newOutputStream;
             },
-            memoryStore
+            memoryStore,
+            jsonTypeInfo
         );
-        var transactionProcessor = new TransactionQueueProcessor(transactionStore, memoryStore);
-        return new DataEngine(
+        var transactionProcessor = new TransactionQueueProcessor<TEntity>(transactionStore, memoryStore);
+        return new DataEngine<TEntity>(
             transactionProcessor,
             transactionStore,
             memoryStore
         );
     }
 
-    public IDataStore Store => store;
-
-    public long DeadSpace => memoryStore.DeadSpace;
+    public IDataStore<TEntity> Store => store;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -103,19 +104,7 @@ public class DataEngine : IDataEngine, IDisposable
         //sw.Start();
         foreach (var record in this.transactionStore.LoadRecords(cancellationToken))
         {
-            if (record.ChangeType == DocumentChangeType.Set)
-            {
-                var document = new Document(record.Version, record.Body)
-                {
-                    SizeInStore = record.SizeInStore
-                };
-
-                memoryStore.LoadSet(record.Key, document);
-            }
-            else
-            {
-                memoryStore.LoadDelete(record.Key, record.Version, record.SizeInStore);
-            }
+            memoryStore.LoadChange(record.Key, record);
         }
         //sw.Stop();
         //Console.WriteLine($"Finished loading from store: took {sw.Elapsed.TotalSeconds}");
@@ -166,4 +155,12 @@ public class DataEngine : IDataEngine, IDisposable
     {
         return transactionStore.ForceMaintenance();
     }
+
+    public long DeadEntityCount => memoryStore.DeadEntityCount;
+
+    public long EntityCount => memoryStore.EntityCount;
+
+    public double DeadSpacePercentage => memoryStore.EntityCount == 0 ?
+        0.0 :
+        memoryStore.DeadEntityCount / memoryStore.EntityCount;
 }

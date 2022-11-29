@@ -6,26 +6,26 @@ using System.Threading.Tasks;
 
 namespace KHAOSS
 {
-    public class GetCorrelation
+    public class GetCorrelation<T> where T : IEntity
     {
         
         private string key;
 
-        private TaskCompletionSource<Document> completionSource;
+        private TaskCompletionSource<T> completionSource;
         public string Key => this.key;
 
         public GetCorrelation(string key)
         {
             this.key = key;
-            completionSource = new TaskCompletionSource<Document>(TaskCreationOptions.RunContinuationsAsynchronously);
+            completionSource = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         }
 
-        public void SetResult(Document document)
+        public void SetResult(T document)
         {
             completionSource.SetResult(document);
         }
 
-        public Task<Document> Task => completionSource.Task;
+        public Task<T> Task => completionSource.Task;
 
 
         public void Reset()

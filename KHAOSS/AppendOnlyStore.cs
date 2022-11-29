@@ -1,5 +1,7 @@
 ﻿using System.Diagnostics;
 using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace KHAOSS;
 
@@ -9,13 +11,13 @@ namespace KHAOSS;
 /// Shrinking removed data from the file doubles as backing up the transaction
 /// store, as it requires rewriting.
 /// </summary>
-public class AppendOnlyStore : ITransactionStore, IDisposable
+public class AppendOnlyStore<T> : ITransactionStore<T>, IDisposable where T : IEntity
 {
     private Stream outputStream;
     private readonly Func<Stream> rewriteStreamFactory;
     private readonly Func<Stream, Stream, Stream> swapRewriteStreamCallback;
-    private readonly IMemoryStore memoryStore;
-
+    private readonly IMemoryStore<T> memoryStore;
+    private readonly JsonTypeInfo<T> jsonTypeInfo;
     private TransactionRecord serializationRecord;
     private Task flushTask;
     private int unflushed = 0;
@@ -29,13 +31,15 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
         Stream outputStream,
         Func<Stream> rewriteStreamFactory,
         Func<Stream, Stream, Stream> swapRewriteStreamCallback,
-        IMemoryStore memoryStore
+        IMemoryStore<T> memoryStore,
+        JsonTypeInfo<T> jsonTypeInfo
         )
     {
         this.outputStream = outputStream;
         this.rewriteStreamFactory = rewriteStreamFactory;
         this.swapRewriteStreamCallback = swapRewriteStreamCallback;
         this.memoryStore = memoryStore;
+        this.jsonTypeInfo = jsonTypeInfo;
         this.serializationRecord = new TransactionRecord();
     }
 
@@ -43,20 +47,20 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
     {
         var startingLength = outputStream.Length;
         long endingLength = 0;
-        //Console.WriteLine("Starting rewrite");
+        Console.WriteLine("Starting rewrite");
         var transactionRecord = new TransactionRecord();
         transactionRecord.ChangeType = DocumentChangeType.Set;
 
         var itemsRewritten = 0;
 
-
         foreach (var item in memoryStore.GetByPrefix("", false))
         {
             itemsRewritten++;
-            transactionRecord.Key = item.Key;
-            transactionRecord.Body = item.Value.Body;
-            transactionRecord.Version = item.Value.Version;
-            WriteRewriteTransaction(transactionRecord);
+            if (itemsRewritten > 0)
+            {
+                this.rewriteStream.WriteByte(LF);
+            }
+            JsonSerializer.Serialize(outputStream, item, jsonTypeInfo);
             if (rewriteTailBuffer.Length > 65536)
             {
                 lock (writeLock)
@@ -83,7 +87,7 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
         }
 
         var elapsed = sw.Elapsed;
-        //Console.WriteLine($"Rewrote db - {itemsRewritten} items in {elapsed.TotalMilliseconds} - FROM {startingLength} TO {endingLength}");
+        Console.WriteLine($"Rewrote db - {itemsRewritten} items in {elapsed.TotalMilliseconds} - FROM {startingLength} TO {endingLength}");
 
     }
 
@@ -130,23 +134,25 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
 
     }
 
-    public IEnumerable<TransactionRecord> LoadRecords(CancellationToken cancellationToken)
+    public IEnumerable<T> LoadRecords(CancellationToken cancellationToken)
     {
         // We only take an anemic approach to checking for load and write contention
 
         //var lengthBytes = new byte[4];
-        var readBuffer = new byte[4096];
+
+        using var sr = new StreamReader(outputStream, System.Text.Encoding.UTF8, leaveOpen: true);
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            var transactionrecord = TransactionRecord.LoadFromStream(outputStream, ref readBuffer);
-            if (transactionrecord == null)
+            var line = sr.ReadLine();
+            if (line == null)
             {
                 yield break;
             }
-            else
+            if (line.Length > 0)
             {
-                yield return transactionrecord;
+                var entity = JsonSerializer.Deserialize<T>(line, jsonTypeInfo);
+                yield return entity;
             }
         }
 
@@ -169,67 +175,50 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
         }
     }
 
-    public void WriteTransaction(Transaction transaction)
+    public void WriteTransaction(Transaction<T> transaction)
     {
         if (transaction.IsSingleChange)
         {
-            WriteDocumentChange(transaction.DocumentChange);
+            WriteDocumentChange(transaction.Entity);
         }
         else
         {
-            for (int i = 0; i < transaction.DocumentChanges.Length; i++)
+            for (int i = 0; i < transaction.Entities.Length; i++)
             {
-                WriteDocumentChange(transaction.DocumentChanges[i]);
+                WriteDocumentChange(transaction.Entities[i]);
             }
         }
-        transaction.SetResult(TransactionResult.Complete);
+        transaction.Complete();
     }
 
-    private void WriteRewriteTransaction(TransactionRecord record)
+    private const byte LF = 10;
+
+    private void WriteDocumentChange(T entity)
     {
-        record.WriteTostream(this.rewriteStream);
-    }
-
-    private void WriteDocumentChange(DocumentChange documentChange)
-    {
-
-        serializationRecord.Key = documentChange.Key;
-        serializationRecord.ChangeType = documentChange.ChangeType;
-        serializationRecord.Version = documentChange.Version;
-
-        // serializationRecord.BodyHash TODO: calculate hash of body?
-
-        if (documentChange.Document != null)
-        {
-            serializationRecord.Body = documentChange.Document.Body;
-        }
-
         lock (writeLock)
         {
-            serializationRecord.WriteTostream(outputStream);
-
-            var written = serializationRecord.SizeInStore;
-            unflushed += written;
-
-            if (documentChange.ChangeType == DocumentChangeType.Set)
+            var startingPosition = outputStream.Position;
+            bool writeLF = false;
+            if (startingPosition > 0)
             {
-                documentChange.Document.SizeInStore = written;
+                writeLF = true;
+                outputStream.WriteByte(LF);
             }
-            else if (documentChange.ChangeType == DocumentChangeType.Delete)
-            {
-                memoryStore.AddDeadSpace(written);
-            }
-
+            JsonSerializer.Serialize(outputStream, entity, jsonTypeInfo);
+            var written = outputStream.Position - startingPosition;
+            unflushed += (int)written;
 
             if (rewriteTailBuffer != null)
             {
-                serializationRecord.WriteTostream(rewriteStream);
+                if (writeLF) rewriteStream.WriteByte(LF);
+                JsonSerializer.Serialize(rewriteStream, entity, jsonTypeInfo);
             }
 
             if (rewriteStream == null)
             {
-                var ratio = memoryStore.DeadSpace / (double)outputStream.Length;
-                if (ratio > .6 && memoryStore.DeadSpace > 10_000_000)
+            
+                var ratio = memoryStore.DeadEntityCount / memoryStore.EntityCount;
+                if (ratio > 1.0 && memoryStore.EntityCount > 10000)
                 {
                     rewriteTailBuffer = new MemoryStream();
                     rewriteStream = rewriteStreamFactory();
@@ -237,7 +226,8 @@ public class AppendOnlyStore : ITransactionStore, IDisposable
                     // These could be written to the tail buffer instead
                     // Putting them into the rewrite stream means they are out
                     // of order with when the transaction was done, but shouldn't matter
-                    serializationRecord.WriteTostream(rewriteStream);
+                    if (writeLF) rewriteStream.WriteByte(LF);
+                    JsonSerializer.Serialize(rewriteStream, entity, jsonTypeInfo);
 
                     memoryStore.ResetDeadSpace();
                     rewriteTask = Task.Run(() => Rewrite());

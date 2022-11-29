@@ -5,13 +5,13 @@ using System.Threading.Tasks;
 
 namespace KHAOSS
 {
-    public interface ITransactionStore : IDisposable
+    public interface ITransactionStore<T> : IDisposable where T : IEntity
     {
 
-        void WriteTransaction(Transaction transaction);
+        void WriteTransaction(Transaction<T> transaction);
         void StartFileManagement();
 
-        IEnumerable<TransactionRecord> LoadRecords(CancellationToken cancellationToken);
+        IEnumerable<T> LoadRecords(CancellationToken cancellationToken);
 
         void RemoveAllDocuments();
         Task ForceMaintenance();

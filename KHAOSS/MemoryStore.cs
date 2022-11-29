@@ -4,164 +4,147 @@
 /// An light in-memory transactional wrapper around storing documents in memory.
 /// The in-memory representation is implemented as a radix tree.
 /// </summary>
-public class MemoryStore : IMemoryStore
+public class MemoryStore<T> : IMemoryStore<T> where T : class, IEntity
 {
 
-    private readonly PrefixLookup<Document> lookup;
+    private readonly PrefixLookup<T> lookup;
 
     private long deadSpace;
+    private long deadEntityCount;
+    private long entityCount;
     public long DeadSpace => deadSpace;
-
+    public long DeadEntityCount => deadEntityCount;
+    public long EntityCount => entityCount;
     public MemoryStore()
     {
-        lookup = new PrefixLookup<Document>();
+        lookup = new();
     }
 
-    public void Set(string key, Document document)
+    public T Get(string key)
     {
-        lookup.Add(key, document);
+        var result = lookup.Get(key);
+        return result.Deleted ? default(T) : result;
     }
 
-    public Document Get(string key)
+    public IEnumerable<T> GetByPrefix(string prefix, bool sortResults)
     {
-        return lookup.Get(key);
+        if (sortResults)
+        {
+            return lookup.GetKeyValuePairByPrefix(prefix, sortResults)
+                .Where(x => !x.Value.Deleted)
+                .Select(x => x.Value);
+        }
+        else
+        {
+            return lookup.GetByPrefixValues(prefix);
+        }
     }
 
-    public IEnumerable<KeyValuePair<string, Document>> GetByPrefix(string prefix, bool sortResults)
-    {
-        return lookup.GetByPrefix(prefix, sortResults);
-    }
-
-    public TransactionResult ProcessTransaction(Transaction transaction)
+    public bool ProcessTransaction(Transaction<T> transaction)
     {
 
         if (transaction.IsSingleChange)
         {
-            var change = transaction.DocumentChange;
-            var existingDocument = lookup.Get(change.Key);
+            var entity = transaction.Entity;
+            var existingDocument = lookup.Get(entity.Key);
             if (existingDocument != null)
             {
-                if (existingDocument.Version > change.Version)
+
+                if (
+                    (existingDocument.Version > entity.Version) ||
+                    (existingDocument.Deleted && entity.Version != 0)
+                    )
                 {
-                    transaction.SetResult(TransactionResult.FailedConcurrencyCheck);
-                    return TransactionResult.FailedConcurrencyCheck;
+                    transaction.Entity = existingDocument;
+                    transaction.SetError(new OptimisticConcurrencyException(entity.Key, entity.Version, existingDocument.Version));
+                    return false;
                 }
-            }
-
-            change.PassedConcurrencyCheck();
-            if (existingDocument != null)
-            {
-                deadSpace += existingDocument.SizeInStore;
-            }
-
-            switch (change.ChangeType)
-            {
-                case DocumentChangeType.Set:
-                    lookup.Add(change.Key, change.Document);
-                    break;
-                case DocumentChangeType.Delete:
-                    lookup.Remove(change.Key);
-                    break;
-                default:
-                    transaction.SetResult(TransactionResult.UnexpectedError, $"Unknown and unhandled change type detected: {change.ChangeType}");
-                    return TransactionResult.UnexpectedError;
-            }
-        }
-        else
-        {
-            int deadSpaceInExistingDocuments = 0;
-            for (int i = 0; i < transaction.DocumentChanges.Length; i++)
-            {
-                DocumentChange change = transaction.DocumentChanges[i];
-                var existingDocument = lookup.Get(change.Key);
-                if (existingDocument != null)
-                {
-                    if (existingDocument.Version != change.Version)
-                    {
-                        transaction.SetResult(TransactionResult.FailedConcurrencyCheck);
-                        return TransactionResult.FailedConcurrencyCheck;
-                    }
-                    deadSpaceInExistingDocuments += existingDocument.SizeInStore;
-                }
-            }
-
-            this.deadSpace += deadSpaceInExistingDocuments;
-
-            for (int i = 0; i < transaction.DocumentChanges.Length; i++)
-            {
-                DocumentChange change = transaction.DocumentChanges[i];
-                change.PassedConcurrencyCheck();
-
-                switch (change.ChangeType)
-                {
-                    case DocumentChangeType.Set:
-                        lookup.Add(change.Key, change.Document);
-                        break;
-                    case DocumentChangeType.Delete:
-                        lookup.Remove(change.Key);
-                        break;
-                    default:
-                        transaction.SetResult(TransactionResult.UnexpectedError, $"Unknown and unhandled change type detected: {change.ChangeType}");
-                        return TransactionResult.UnexpectedError;
-                }
-            }
-        }
-
-        return TransactionResult.Complete;
-    }
-
-    public void LoadSet(string key, Document document)
-    {
-        var existingRecord = lookup.Get(key);
-        if (existingRecord != null)
-        {
-            if (document.Version > existingRecord.Version)
-            {
-                lookup.Add(key, document);
-                deadSpace += existingRecord.SizeInStore;
+                deadEntityCount++;
             }
             else
             {
-                deadSpace += document.SizeInStore;
+                entityCount++;
             }
+
+            entity = (T)entity.WithVersion(entity.Version + 1);
+            lookup.Add(entity.Key, entity);
+
+            transaction.Entity = entity;
         }
         else
         {
-            lookup.Add(key, document);
+            int deadEntitiesInExisting = 0;
+            int newEntitiesCount = 0;
+            for (int i = 0; i < transaction.Entities.Length; i++)
+            {
+                var entity = transaction.Entities[i];
+                var existingDocument = lookup.Get(entity.Key);
+                if (existingDocument != null)
+                {
+                    if (
+                        (existingDocument.Version > entity.Version) ||
+                        (existingDocument.Deleted && entity.Version != 0)
+                        )
+                    {
+                        transaction.Entity = existingDocument;
+                        transaction.SetError(new OptimisticConcurrencyException(entity.Key, entity.Version, existingDocument.Version));
+                        return false;
+                    }
+                    deadEntitiesInExisting++;
+                }
+                else
+                {
+                    newEntitiesCount++;
+                }
+            }
+
+            this.deadEntityCount += deadEntitiesInExisting;
+            this.entityCount += newEntitiesCount;
+
+            for (int i = 0; i < transaction.Entities.Length; i++)
+            {
+                var change = transaction.Entities[i];
+                change = (T)change.WithVersion(change.Version + 1);
+                lookup.Add(change.Key, change);
+                transaction.Entities[i] = change;
+            }
         }
+
+        return true;
     }
 
-    public void LoadDelete(string key, int version, int sizeInStore)
+    public void LoadChange(string key, T entity)
     {
-
         var existingRecord = lookup.Get(key);
         if (existingRecord != null)
         {
-            if (version > existingRecord.Version)
+            if (entity.Version > existingRecord.Version)
             {
-                lookup.Remove(key);
-                deadSpace += existingRecord.SizeInStore;
+                lookup.Add(key, entity);
             }
+            deadEntityCount++;
         }
-        // The document is stored as well as the transaction to later delete it
-        // They both add to the storage size
-        deadSpace += sizeInStore;
-
+        else
+        {
+            entityCount++;
+            lookup.Add(key, entity);
+        }
     }
+
 
     public void RemoveAllDocuments()
     {
         lookup.Clear();
     }
 
-    public void AddDeadSpace(long additionalDeadSpace)
+    public void IncrementDeadEntities()
     {
-        deadSpace += additionalDeadSpace;
+        deadEntityCount++;
     }
 
     public void ResetDeadSpace()
     {
-        deadSpace = 0;
+        deadEntityCount = 0;
     }
 
 }

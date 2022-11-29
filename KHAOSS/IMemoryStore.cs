@@ -6,16 +6,17 @@ using System.Threading.Tasks;
 
 namespace KHAOSS
 {
-    public interface IMemoryStore
+    public interface IMemoryStore<T> where T : IEntity
     {
-        Document Get(string key);
-        IEnumerable<KeyValuePair<string, Document>> GetByPrefix(string prefix, bool sortResults);
-        TransactionResult ProcessTransaction(Transaction transaction);
-        void LoadSet(string key, Document document);
-        void LoadDelete(string key, int version, int sizeInStore);
+        T Get(string key);
+        IEnumerable<T> GetByPrefix(string prefix, bool sortResults);
+        bool ProcessTransaction(Transaction<T> transaction);
+        void LoadChange(string key, T document);
         long DeadSpace { get; }
-        void AddDeadSpace(long additionalDeadSpace);
+        void IncrementDeadEntities();
         void RemoveAllDocuments();
         void ResetDeadSpace();
+        public long EntityCount {get;}
+        public long DeadEntityCount {get;}
     }
 }

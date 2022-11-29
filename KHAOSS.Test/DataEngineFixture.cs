@@ -11,12 +11,12 @@ namespace KHAOSS.Test
     // https://xunit.net/docs/shared-context
     public class DataEngineFixture : IDisposable
     {
-        public DataEngine Engine { get; private set; }
-        public IDataStore Store => Engine.Store;
+        public DataEngine<Entity> Engine { get; private set; }
+        public IDataStore<Entity> Store => Engine.Store;
 
         public DataEngineFixture()
         {
-            this.Engine = DataEngine.CreateTransient();
+            this.Engine = DataEngine<Entity>.CreateTransient(SourceGenerationContext.Default.Entity);
             this.Engine.StartAsync(CancellationToken.None).Wait();
         }
 
