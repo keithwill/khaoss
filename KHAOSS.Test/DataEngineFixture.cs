@@ -12,7 +12,7 @@ namespace KHAOSS.Test
     public class DataEngineFixture : IDisposable
     {
         public DataEngine<Entity> Engine { get; private set; }
-        public IDataStore<Entity> Store => Engine.Store;
+        public DataStore<Entity> Store => Engine.Store;
 
         public DataEngineFixture()
         {

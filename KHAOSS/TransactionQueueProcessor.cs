@@ -9,18 +9,18 @@ namespace KHAOSS;
 /// Responsible for processing each transaction and passing the results to both
 /// any memory cache and transaction store.
 /// </summary>
-public class TransactionQueueProcessor<TBaseType> : ITransactionProcessor<TBaseType> where TBaseType : IEntity
+public class TransactionQueueProcessor<TBaseType> where TBaseType : class, IEntity
 {
-    private readonly ITransactionStore<TBaseType> transactionStore;
-    private readonly IMemoryStore<TBaseType> memoryStore;
+    private readonly AppendOnlyStore<TBaseType> transactionStore;
+    private readonly MemoryStore<TBaseType> memoryStore;
     private Task processQueuesTask;
     private CancellationTokenSource processQueuesCancellationTokenSource;
     private readonly Channel<QueueItem<TBaseType>> queueItemChannel;
 
 
     public TransactionQueueProcessor(
-        ITransactionStore<TBaseType> transactionStore,
-        IMemoryStore<TBaseType> memoryStore
+        AppendOnlyStore<TBaseType> transactionStore,
+        MemoryStore<TBaseType> memoryStore
     )
     {
         this.queueItemChannel = Channel.CreateUnbounded<QueueItem<TBaseType>>(new UnboundedChannelOptions { SingleReader = true });

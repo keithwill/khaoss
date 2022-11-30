@@ -8,11 +8,11 @@ namespace KHAOSS;
 /// calling context so that the results can be returned to the caller
 /// from a task after the transaction processor finishes processing the request.
 /// </summary>
-public class DataStore<TBaseEntity> : IDataStore<TBaseEntity> where TBaseEntity : class, IEntity
+public class DataStore<TBaseEntity> where TBaseEntity : class, IEntity
 {
-    private readonly ITransactionProcessor<TBaseEntity> transactionProcessor;
+    private readonly TransactionQueueProcessor<TBaseEntity> transactionProcessor;
 
-    public DataStore(ITransactionProcessor<TBaseEntity> transactionProcessor)
+    public DataStore(TransactionQueueProcessor<TBaseEntity> transactionProcessor)
     {
         this.transactionProcessor = transactionProcessor;
     }
@@ -21,7 +21,7 @@ public class DataStore<TBaseEntity> : IDataStore<TBaseEntity> where TBaseEntity 
     {
         var transaction = new Transaction<TBaseEntity>(entities);
         await transactionProcessor.ProcessTransaction(transaction);
-        return (TBaseEntity[])transaction.Entities;
+        return transaction.Entities;
     }
 
     public async Task<T> Save<T>(T entity) where T : class, TBaseEntity

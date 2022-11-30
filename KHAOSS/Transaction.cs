@@ -12,17 +12,10 @@ namespace KHAOSS
         private TaskCompletionSource taskCompletionSource = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         private T entity;
         private T[] entities;
-        private TransactionResult transactionResult;
-        private string errorMessage = null;
-
-        private bool passedConcurrencyCheck = false;
-
-        public bool PassedConcurrencyCheck { get => passedConcurrencyCheck; set => passedConcurrencyCheck = value; }
 
         public T Entity { get => entity; internal set => entity = value; }
         public T[] Entities { get => entities; internal set => entities = value; }
-        public TransactionResult TransactionResult => transactionResult;
-        public bool IsComplete => taskCompletionSource.Task.IsCompleted;
+
 
         public Transaction(T entity)
         {

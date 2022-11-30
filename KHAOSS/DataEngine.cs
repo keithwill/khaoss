@@ -4,17 +4,17 @@ using System.Text.Json.Serialization.Metadata;
 
 namespace KHAOSS;
 
-public class DataEngine<TEntity> : IDataEngine<TEntity>, IDisposable where TEntity : class, IEntity
+public class DataEngine<TEntity> : IDisposable where TEntity : class, IEntity
 {
-    private readonly ITransactionProcessor<TEntity> transactionProcessor;
-    private readonly ITransactionStore<TEntity> transactionStore;
-    private readonly IMemoryStore<TEntity> memoryStore;
-    private readonly IDataStore<TEntity> store;
+    private readonly TransactionQueueProcessor<TEntity> transactionProcessor;
+    private readonly AppendOnlyStore<TEntity> transactionStore;
+    private readonly MemoryStore<TEntity> memoryStore;
+    private readonly DataStore<TEntity> store;
 
     public DataEngine(
-        ITransactionProcessor<TEntity> transactionProcessor,
-        ITransactionStore<TEntity> transactionStore,
-        IMemoryStore<TEntity> memoryStore
+        TransactionQueueProcessor<TEntity> transactionProcessor,
+        AppendOnlyStore<TEntity> transactionStore,
+        MemoryStore<TEntity> memoryStore
         )
     {
         this.transactionProcessor = transactionProcessor;
@@ -82,7 +82,7 @@ public class DataEngine<TEntity> : IDataEngine<TEntity>, IDisposable where TEnti
         );
     }
 
-    public IDataStore<TEntity> Store => store;
+    public DataStore<TEntity> Store => store;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -104,14 +104,10 @@ public class DataEngine<TEntity> : IDataEngine<TEntity>, IDisposable where TEnti
 
     private void LoadRecordsFromStore(CancellationToken cancellationToken)
     {
-        //Stopwatch sw = new();
-        //sw.Start();
         foreach (var record in this.transactionStore.LoadRecords(cancellationToken))
         {
             memoryStore.LoadChange(record.Key, record);
         }
-        //sw.Stop();
-        //Console.WriteLine($"Finished loading from store: took {sw.Elapsed.TotalSeconds}");
     }
 
     private bool disposing = false;

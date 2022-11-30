@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace KHAOSS
 {
-    public class GetCorrelation<T> where T : IEntity
+    internal class GetCorrelation<T> where T : IEntity
     {
         
         private string key;

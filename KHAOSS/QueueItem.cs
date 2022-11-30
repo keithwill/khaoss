@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace KHAOSS
 {
-    public sealed class QueueItem<T> where T : IEntity
+    internal sealed class QueueItem<T> where T : IEntity
     {
         public GetByPrefixCorrelation<T> GetByPrefixCorrelation;
         public GetCorrelation<T> GetCorrelation;

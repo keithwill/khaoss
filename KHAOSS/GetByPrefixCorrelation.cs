@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace KHAOSS
 {
-    public class GetByPrefixCorrelation<T> where T : IEntity
+    internal class GetByPrefixCorrelation<T> where T : IEntity
     {
         private readonly string prefix;
 

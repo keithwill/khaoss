@@ -11,12 +11,12 @@ namespace KHAOSS;
 /// Shrinking removed data from the file doubles as backing up the transaction
 /// store, as it requires rewriting.
 /// </summary>
-public class AppendOnlyStore<T> : ITransactionStore<T>, IDisposable where T : IEntity
+public class AppendOnlyStore<T> : IDisposable where T : class, IEntity
 {
     private Stream outputStream;
     private readonly Func<Stream> rewriteStreamFactory;
     private readonly Func<Stream, Stream, Stream> swapRewriteStreamCallback;
-    private readonly IMemoryStore<T> memoryStore;
+    private readonly MemoryStore<T> memoryStore;
     private readonly JsonTypeInfo<T> jsonTypeInfo;
     private Task flushTask;
     private int unflushed = 0;
@@ -31,7 +31,7 @@ public class AppendOnlyStore<T> : ITransactionStore<T>, IDisposable where T : IE
         Stream outputStream,
         Func<Stream> rewriteStreamFactory,
         Func<Stream, Stream, Stream> swapRewriteStreamCallback,
-        IMemoryStore<T> memoryStore,
+        MemoryStore<T> memoryStore,
         JsonTypeInfo<T> jsonTypeInfo
         )
     {
@@ -144,9 +144,6 @@ public class AppendOnlyStore<T> : ITransactionStore<T>, IDisposable where T : IE
 
     public IEnumerable<T> LoadRecords(CancellationToken cancellationToken)
     {
-        // We only take an anemic approach to checking for load and write contention
-
-        //var lengthBytes = new byte[4];
 
         using var sr = new StreamReader(outputStream, System.Text.Encoding.UTF8, leaveOpen: true);
 
