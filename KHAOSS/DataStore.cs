@@ -11,10 +11,12 @@ namespace KHAOSS;
 public class DataStore<TBaseEntity> where TBaseEntity : class, IEntity
 {
     private readonly TransactionQueueProcessor<TBaseEntity> transactionProcessor;
+    private readonly MemoryStore<TBaseEntity> memoryStore;
 
-    public DataStore(TransactionQueueProcessor<TBaseEntity> transactionProcessor)
+    public DataStore(TransactionQueueProcessor<TBaseEntity> transactionProcessor, MemoryStore<TBaseEntity> memoryStore)
     {
         this.transactionProcessor = transactionProcessor;
+        this.memoryStore = memoryStore;
     }
 
     public async Task<TBaseEntity[]> Save(TBaseEntity[] entities)
@@ -31,14 +33,14 @@ public class DataStore<TBaseEntity> where TBaseEntity : class, IEntity
         return transaction.Entity as T;
     }
 
-    public async Task<T> Get<T>(string key) where T : class, TBaseEntity
+    public T Get<T>(string key) where T : class, TBaseEntity
     {
-        return await transactionProcessor.ProcessGet(key) as T;
+        return memoryStore.Get(key) as T;
     }
 
-    public async Task<IEnumerable<T>> GetByPrefix<T>(string prefix, bool sortResults) where T : class, TBaseEntity
+    public IEnumerable<T> GetByPrefix<T>(string prefix, bool sortResults) where T : class, TBaseEntity
     {
-        return (await transactionProcessor.ProcessGetByPrefix(prefix, sortResults)).Cast<T>();
+        return memoryStore.GetByPrefix(prefix, sortResults).Cast<T>();
     }
 
 }

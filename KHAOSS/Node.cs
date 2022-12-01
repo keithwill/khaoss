@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace KHAOSS
 {
-    public class Node<T> where T : class
+    public class Node<T> where T : class, IEntity
     {
         public Node<T> Parent = null;
         public byte[] KeySegment;

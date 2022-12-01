@@ -18,23 +18,32 @@ public class MemoryStore<T> where T : class, IEntity
         lookup = new();
     }
 
+    public void Lock()
+    {
+        lookup.Lock();
+    }
+
+    public void Unlock() 
+    {
+        lookup.Unlock();
+    }
+
     public T Get(string key)
     {
         var result = lookup.Get(key);
-        return result.Deleted ? default(T) : result;
+        if (result == null) { return null; }
+        return result.Deleted ? null : result;
     }
 
     public IEnumerable<T> GetByPrefix(string prefix, bool sortResults)
     {
         if (sortResults)
         {
-            return lookup.GetKeyValuePairByPrefix(prefix, sortResults)
-                .Where(x => !x.Value.Deleted)
-                .Select(x => x.Value);
+            return lookup.GetByPrefix(prefix).OrderBy(x => x.Key);
         }
         else
         {
-            return lookup.GetByPrefixValues(prefix);
+            return lookup.GetByPrefix(prefix);
         }
     }
 

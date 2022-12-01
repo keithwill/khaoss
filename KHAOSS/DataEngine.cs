@@ -20,7 +20,7 @@ public class DataEngine<TEntity> : IDisposable where TEntity : class, IEntity
         this.transactionProcessor = transactionProcessor;
         this.transactionStore = transactionStore;
         this.memoryStore = memoryStore;
-        this.store = new DataStore<TEntity>(transactionProcessor);
+        this.store = new DataStore<TEntity>(transactionProcessor, memoryStore);
     }
 
     public static DataEngine<TEntity> Create(string databaseFilePath, JsonTypeInfo<TEntity> jsonTypeInfo)
@@ -38,7 +38,7 @@ public class DataEngine<TEntity> : IDisposable where TEntity : class, IEntity
                 rewriteFileStream.Close();
                 outputStream.Close();
 
-                File.Replace(rewriteFilePath, databaseFilePath, null);
+                File.Move(rewriteFilePath, databaseFilePath, true);
                 var newOutputStream = new FileStream(databaseFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 65536);
                 newOutputStream.Position = newOutputStream.Length;
                 newOutputStream.Flush();

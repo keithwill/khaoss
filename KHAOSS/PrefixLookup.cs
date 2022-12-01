@@ -19,13 +19,12 @@ namespace KHAOSS
     /// <seealso>https://en.wikipedia.org/wiki/Radix_tree</seealso>
     /// 
     /// <typeparam name="T"></typeparam>
-    public class PrefixLookup<T> where T : class
+    public class PrefixLookup<T> where T : class, IEntity
     {
 
         private Node<T> root;
 
-        private byte[] keyReadBuffer = new byte[1_000_000];
-        private byte[] keyPrefixBuffer = new byte[1_000_000];
+        private ReaderWriterLockSlim lockSlim= new ReaderWriterLockSlim();
 
         public PrefixLookup()
         {
@@ -38,123 +37,121 @@ namespace KHAOSS
 
         public void Add(string key, T value)
         {
-            var keyBytes = GetKeyAsUtf8ByteSpan(key);
-            root.SetValue(keyBytes, value);
+            Span<byte> keyBytes = Encoding.UTF8.GetBytes(key);
+
+            if (lockSlim.IsWriteLockHeld)
+            {
+                root.SetValue(keyBytes, value);
+                return;
+            }
+
+            lockSlim.EnterWriteLock();
+            try
+            {
+                root.SetValue(keyBytes, value);
+            }
+            finally
+            {
+                lockSlim.ExitWriteLock();
+            }
+        }
+
+
+        public void Lock()
+        {
+            if (lockSlim.IsWriteLockHeld) return;
+            lockSlim.EnterWriteLock();
+        }
+
+        public void Unlock()
+        {
+            if (lockSlim.IsWriteLockHeld)
+            {
+                lockSlim.ExitWriteLock();
+            }
         }
 
         public T Get(string key)
         {
-            var keySpan = GetKeyAsUtf8ByteSpan(key);
-            return root.GetValue(keySpan)?.Value;
+            Span<byte> keyBytes = Encoding.UTF8.GetBytes(key);
+
+            if (lockSlim.IsWriteLockHeld)
+            {
+                return root.GetValue(keyBytes)?.Value;
+            }
+
+            lockSlim.EnterReadLock();
+            try
+            {
+                return root.GetValue(keyBytes)?.Value;
+
+            }
+            finally
+            {
+                lockSlim.ExitReadLock();
+            }
         }
 
         public void Clear()
         {
-            this.root.Value = null;
-            this.root.Children = null;
-        }
-
-        public IEnumerable<KeyValuePair<string, T>> GetKeyValuePairByPrefix(string keyPrefix, bool sort = false)
-        {
-            if (!sort)
+            lockSlim.EnterWriteLock();
+            try
             {
-                return GetByPrefixUnsorted(keyPrefix);
+                this.root.Value = null;
+                this.root.Children = null;
             }
-
-            return GetByPrefixSorted(keyPrefix);
-
+            finally
+            {
+                lockSlim.ExitWriteLock();
+            }
         }
 
-        public IEnumerable<T> GetByPrefixValues(string keyPrefix)
+        public IEnumerable<T> GetByPrefix(string keyPrefix)
         {
             var results = new List<Node<T>>();
 
-            var keyPrefixSpan = GetKeyAsUtf8ByteSpan(keyPrefix);
+            Span<byte> keyPrefixSpan = Encoding.UTF8.GetBytes(keyPrefix);
 
-            if (keyPrefix == string.Empty)
+            if (lockSlim.IsWriteLockHeld)
             {
-                root.GetAllValuesAtOrBelow(results);
-            }
-            else
-            {
-                root.GetValuesByPrefix(keyPrefixSpan, results);
-            }
-            foreach(var value in results)
-            {
-                yield return value.Value;
-            }
-        }
-
-        private IEnumerable<KeyValuePair<string, T>> GetByPrefixUnsorted(string keyPrefix)
-        {
-            var results = new List<Node<T>>();
-            
-            var keyPrefixSpan = GetKeyAsUtf8ByteSpan(keyPrefix);
-
-            if (keyPrefix == string.Empty)
-            {
-                root.GetAllValuesAtOrBelow(results);
-            }
-            else
-            {
-                root.GetValuesByPrefix(keyPrefixSpan, results);
-            }
-
-            foreach(var node in results)
-            {
-                int keyByteLength = node.KeySegment.Length;
-                var parent = node.Parent;
-                while (parent != null)
+                if (keyPrefix == string.Empty)
                 {
-                    keyByteLength += parent.KeySegment.Length;
-                    parent = parent.Parent;
+                    root.GetAllValuesAtOrBelow(results);
                 }
-                var keyBytes = new Span<byte>(keyReadBuffer, 0, keyByteLength);
-                parent = node.Parent;
-                int offset = 0;
-                while (parent != null)
+                else
                 {
-                    if (parent.KeySegment.Length == 1)
-                    {
-                        keyBytes[offset] = parent.KeySegment[0];
-                        offset++;
-                    }
-                    if (parent.KeySegment.Length > 1)
-                    {
-                        for (int i = parent.KeySegment.Length - 1; i >= 0; i--)
-                        {
-                            keyBytes[offset + i] = parent.KeySegment[i];
-                        }
-                        offset += parent.KeySegment.Length;
-                    }
-                    parent = parent.Parent;
+                    root.GetValuesByPrefix(keyPrefixSpan, results);
                 }
-                keyBytes.Reverse();
-                var key = Encoding.UTF8.GetString(keyBytes);
-                yield return new KeyValuePair<string, T>(key, node.Value);
+                return results.Select(x => x.Value);
             }
-        }
 
-        private IEnumerable<KeyValuePair<string, T>> GetByPrefixSorted(string keyPrefix)
-        {
-            var results = GetByPrefixUnsorted(keyPrefix);
-            results = results.OrderBy(x => x.Key);
-            return results;
+            lockSlim.EnterReadLock();
+            try
+            {
+                if (keyPrefix == string.Empty)
+                {
+                    root.GetAllValuesAtOrBelow(results);
+                }
+                else
+                {
+                    root.GetValuesByPrefix(keyPrefixSpan, results);
+                }
+                return results.Select(x => x.Value);
+
+            }
+            finally
+            {
+                lockSlim.ExitReadLock();
+            }
+
+
         }
 
         public void Remove(string key)
         {
-            var keySpan = GetKeyAsUtf8ByteSpan(key);
+            Span<byte> keySpan = Encoding.UTF8.GetBytes(key);
             var node = root.GetValue(keySpan);
             node?.RemoveValue();
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private Span<byte> GetKeyAsUtf8ByteSpan(string key)
-        {
-            var keyPrefixLength = Encoding.UTF8.GetBytes(key, keyPrefixBuffer);
-            var keyPrefixSpan = new Span<byte>(keyPrefixBuffer, 0, keyPrefixLength);
-            return keyPrefixSpan;
         }
 
     }

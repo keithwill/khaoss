@@ -68,15 +68,6 @@ public class AppendOnlyStore<T> : IDisposable where T : class, IEntity
                 this.rewriteStream.WriteByte(LF);
             }
             JsonSerializer.Serialize(rewriteStream, item, jsonTypeInfo);
-            if (rewriteTailBuffer.Length > 65536)
-            {
-                lock (writeLock)
-                {
-                    rewriteTailBuffer.Position = 0;
-                    rewriteTailBuffer.CopyTo(rewriteStream);
-                    rewriteTailBuffer.SetLength(0);
-                }
-            }
             itemsRewritten++;
         }
         rewriteStream.Flush();
@@ -85,9 +76,9 @@ public class AppendOnlyStore<T> : IDisposable where T : class, IEntity
 
         lock (writeLock)
         {
-            rewriteTailBuffer.WriteTo(rewriteStream);
             endingLength = rewriteStream.Length;
             outputStream = swapRewriteStreamCallback(outputStream, rewriteStream);
+            rewriteTailBuffer.WriteTo(outputStream);
             rewriteStream.Dispose();
             rewriteTailBuffer.Dispose();
             rewriteStream = null;
@@ -156,8 +147,21 @@ public class AppendOnlyStore<T> : IDisposable where T : class, IEntity
             }
             if (line.Length > 0)
             {
-                var entity = JsonSerializer.Deserialize<T>(line, jsonTypeInfo);
-                yield return entity;
+                T entity = null;
+                try
+                {
+                    entity = JsonSerializer.Deserialize<T>(line, jsonTypeInfo);
+                }
+                catch (JsonException)
+                {
+                }
+
+                if (entity != null)
+                {
+                    yield return entity;
+                }
+
+
             }
         }
 
@@ -216,11 +220,10 @@ public class AppendOnlyStore<T> : IDisposable where T : class, IEntity
 
             if (rewriteTailBuffer != null)
             {
-                if (writeLF) rewriteStream.WriteByte(LF);
-                JsonSerializer.Serialize(rewriteStream, entity, jsonTypeInfo);
+                if (writeLF) rewriteTailBuffer.WriteByte(LF);
+                JsonSerializer.Serialize(rewriteTailBuffer, entity, jsonTypeInfo);
             }
-
-            if (rewriteStream == null)
+            else
             {
             
                 var ratio = memoryStore.DeadEntityCount / memoryStore.EntityCount;
@@ -232,11 +235,11 @@ public class AppendOnlyStore<T> : IDisposable where T : class, IEntity
                     // These could be written to the tail buffer instead
                     // Putting them into the rewrite stream means they are out
                     // of order with when the transaction was done, but shouldn't matter
-                    if (writeLF) rewriteStream.WriteByte(LF);
-                    JsonSerializer.Serialize(rewriteStream, entity, jsonTypeInfo);
+                    if (writeLF) rewriteTailBuffer.WriteByte(LF);
+                    JsonSerializer.Serialize(rewriteTailBuffer, entity, jsonTypeInfo);
 
                     memoryStore.ResetDeadSpace();
-                    rewriteTask = Task.Run(() => Rewrite());
+                    rewriteTask = Task.Run(Rewrite);
                 }
             }
 

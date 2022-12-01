@@ -31,7 +31,7 @@ namespace KHAOSS.Test
             
             Assert.Equal(entitySavedExpected, entitySaved);
 
-            var entityRetreived = await store.Get<TestDocument>(key);
+            var entityRetreived = store.Get<TestDocument>(key);
             Assert.Equal(entitySavedExpected, entityRetreived);
 
             var entityToUpdate = entityRetreived with {Body = "crud body updated"}; 
@@ -42,7 +42,7 @@ namespace KHAOSS.Test
 
             var toDelete = entityUpdated with { Deleted = true };
             await store.Save(toDelete);
-            var deletedDocument = await store.Get<TestDocument>(key);
+            var deletedDocument = store.Get<TestDocument>(key);
             Assert.Null(deletedDocument);
         }
 
@@ -83,7 +83,7 @@ namespace KHAOSS.Test
             string prefix = "pre";
             string body = "body";
             var expectedDocument = await store.Save(new TestDocument(key, 0, false, body));
-            var prefixResults = await store.GetByPrefix<TestDocument>(prefix, false);
+            var prefixResults = store.GetByPrefix<TestDocument>(prefix, false);
             var firstMatchByPrefix = prefixResults.FirstOrDefault();
             Assert.Equal(expectedDocument, firstMatchByPrefix);
         }
@@ -96,7 +96,7 @@ namespace KHAOSS.Test
             string body = "body";
 
             var expectedDocument = await store.Save(new TestDocument(key, 0, false, body));
-            var prefixResults = await store.GetByPrefix<TestDocument>(prefix, false);
+            var prefixResults = store.GetByPrefix<TestDocument>(prefix, false);
             var firstMatchByPrefix = prefixResults.FirstOrDefault();
             Assert.Equal(expectedDocument, firstMatchByPrefix);
         }
@@ -109,7 +109,7 @@ namespace KHAOSS.Test
             string body = "body";
 
             var expectedDocument = await store.Save(new TestDocument(key, 0, false, body));
-            var prefixResults = await store.GetByPrefix<TestDocument>(prefix, false);
+            var prefixResults = store.GetByPrefix<TestDocument>(prefix, false);
             var firstMatchByPrefix = prefixResults.FirstOrDefault();
             Assert.Equal(expectedDocument, firstMatchByPrefix);
         }
@@ -124,8 +124,8 @@ namespace KHAOSS.Test
             await store.Save(new TestDocument(key, 0, false, "doc1"));
             await store.Save(new TestDocument(notKey, 0, false, "doc2"));
 
-            var doc1 = await store.Get<TestDocument>(key);
-            var doc2 = await store.Get<TestDocument>(notKey);
+            var doc1 = store.Get<TestDocument>(key);
+            var doc2 = store.Get<TestDocument>(notKey);
 
             Assert.NotEqual(doc1.Body, doc2.Body);
         }

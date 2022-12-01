@@ -15,7 +15,7 @@ public class TransactionQueueProcessor<TBaseType> where TBaseType : class, IEnti
     private readonly MemoryStore<TBaseType> memoryStore;
     private Task processQueuesTask;
     private CancellationTokenSource processQueuesCancellationTokenSource;
-    private readonly Channel<QueueItem<TBaseType>> queueItemChannel;
+    private readonly Channel<Transaction<TBaseType>> queueItemChannel;
 
 
     public TransactionQueueProcessor(
@@ -23,7 +23,7 @@ public class TransactionQueueProcessor<TBaseType> where TBaseType : class, IEnti
         MemoryStore<TBaseType> memoryStore
     )
     {
-        this.queueItemChannel = Channel.CreateUnbounded<QueueItem<TBaseType>>(new UnboundedChannelOptions { SingleReader = true });
+        this.queueItemChannel = Channel.CreateUnbounded<Transaction<TBaseType>>(new UnboundedChannelOptions { SingleReader = true });
         this.transactionStore = transactionStore;
         this.memoryStore = memoryStore;
     }
@@ -35,7 +35,7 @@ public class TransactionQueueProcessor<TBaseType> where TBaseType : class, IEnti
             throw new InvalidOperationException("Already processing transactions");
         }
         this.processQueuesCancellationTokenSource = new CancellationTokenSource();
-        this.processQueuesTask = Task.Run(async () => await ProcessQueues());
+        this.processQueuesTask = Task.Run(ProcessQueues);
         return Task.CompletedTask;
     }
 
@@ -53,27 +53,19 @@ public class TransactionQueueProcessor<TBaseType> where TBaseType : class, IEnti
 
         try
         {
-            await foreach (var item in queueItemChannel.Reader.ReadAllAsync(cancellationToken))
+            while (!cancellationToken.IsCancellationRequested )
             {
-                if (item.GetCorrelation != null)
+                Transaction<TBaseType> transaction = await queueItemChannel.Reader.ReadAsync(cancellationToken);
+                do
                 {
-                    var document = memoryStore.Get(item.GetCorrelation.Key);
-                    item.GetCorrelation.SetResult(document);
-                }
-                else if (item.Transaction != null)
-                {
-                    var appliedInMemory = memoryStore.ProcessTransaction(item.Transaction);
-
+                    memoryStore.Lock();
+                    var appliedInMemory = memoryStore.ProcessTransaction(transaction);
                     if (appliedInMemory)
                     {
-                        transactionStore.WriteTransaction(item.Transaction);
+                        transactionStore.WriteTransaction(transaction);
                     }
-                }
-                else if (item.GetByPrefixCorrelation != null)
-                {
-                    var prefixResult = memoryStore.GetByPrefix(item.GetByPrefixCorrelation.Prefix, item.GetByPrefixCorrelation.SortResults);
-                    item.GetByPrefixCorrelation.SetResult(prefixResult);
-                }
+                } while (queueItemChannel.Reader.TryRead(out transaction));
+                memoryStore.Unlock();
             }
         } 
         catch (OperationCanceledException)
@@ -82,57 +74,9 @@ public class TransactionQueueProcessor<TBaseType> where TBaseType : class, IEnti
 
     }
 
-    public Task<TBaseType> ProcessGet(string key)
-    {
-        var correlation = new GetCorrelation<TBaseType>(key);
-        var queueItem = new QueueItem<TBaseType> { GetCorrelation = correlation };
-        if (!queueItemChannel.Writer.TryWrite(queueItem))
-        {
-            if (processQueuesCancellationTokenSource.IsCancellationRequested)
-            {
-                throw new Exception("Get request can't complete because Transaction processor is shutting down");
-            }
-            else
-            {
-                // Should never happen. TryWrite is always supposed to succeed
-                // when channel is open and was created unbound
-                throw new Exception("Could not write to transaction processor get queue for an unknown reason");
-            }
-        }
-        return correlation.Task;
-    }
-
-    public Task<IEnumerable<TBaseType>> ProcessGetByPrefix(string prefix, bool sortResults)
-    {
-        var correlation = new GetByPrefixCorrelation<TBaseType>(prefix, sortResults);
-        var queueItem = new QueueItem<TBaseType> { GetByPrefixCorrelation = correlation };
-        //var queueItem = queueItemPool.Lease();
-        //queueItem.Reset();
-        //queueItem.GetByPrefixCorrelation = correlation;
-        if (!queueItemChannel.Writer.TryWrite(queueItem))
-        {
-            if (processQueuesCancellationTokenSource.IsCancellationRequested)
-            {
-                throw new Exception("Get by prefix request can't complete because Transaction processor is shutting down");
-            }
-            else
-            {
-                // Should never happen. TryWrite is always supposed to succeed
-                // when channel is open and was created unbound
-                throw new Exception("Could not write to transaction processor get queue for an unknown reason");
-            }
-        }
-        return correlation.Task;
-        //queueItemPool.Return(queueItem);
-        //return result;
-    }
-
     public Task ProcessTransaction(Transaction<TBaseType> transaction)
     {
-        var queueItem = new QueueItem<TBaseType>();
-        queueItem.Transaction = transaction;
-
-        if (!queueItemChannel.Writer.TryWrite(queueItem))
+        if (!queueItemChannel.Writer.TryWrite(transaction))
         {
             if (processQueuesCancellationTokenSource.IsCancellationRequested)
             {

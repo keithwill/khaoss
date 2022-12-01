@@ -16,14 +16,13 @@ namespace KHAOSS.Benchmark
 
         private string[] testKeys;
         private string[] testBodyValues;
-        private PrefixLookup<string> testPrefixLookup;
+        private PrefixLookup<Entity> testPrefixLookup;
         private string prefixMatch = "001";
 
         public int N = 10_000;
 
 
         private DataEngine<Entity> dataEngine;
-        private readonly Encoding utf8 = System.Text.Encoding.UTF8;
         private string testKey = "1234567890";
         private Entity testDocument;
 
@@ -54,7 +53,7 @@ namespace KHAOSS.Benchmark
         {
             testKeys = new string[N];
             testBodyValues = new string[N];
-            testPrefixLookup = new PrefixLookup<string>();
+            testPrefixLookup = new PrefixLookup<Entity>();
 
             string keyFormatString = "";
             int formatStringLength = N.ToString().Length;
@@ -72,14 +71,14 @@ namespace KHAOSS.Benchmark
 
             for (int i = 0; i < N; i++)
             {
-                testPrefixLookup.Add(testKeys[i], testBodyValues[i]);
+                testPrefixLookup.Add(testKeys[i], new Entity(testKeys[i], 0, false, $"{testKeys[i]}"));
             }
         }
 
         [Benchmark]
         public void PrefixLookup_PrefixMatch()
         {
-            var result = testPrefixLookup.GetKeyValuePairByPrefix(prefixMatch);
+            var result = testPrefixLookup.GetByPrefix(prefixMatch);
             foreach (var results in result)
             {
                 if (results.Key == null)
@@ -96,9 +95,9 @@ namespace KHAOSS.Benchmark
         }
 
         [Benchmark]
-        public async Task GetValueByKey()
+        public void GetValueByKey()
         {
-            var document = await dataEngine.Store.Get<Entity>(testKey);
+            var document = dataEngine.Store.Get<Entity>(testKey);
         }
 
         [Benchmark]
@@ -116,9 +115,9 @@ namespace KHAOSS.Benchmark
         }
 
         [Benchmark]
-        public async Task GetValueByKeyPrefix()
+        public void GetValueByKeyPrefix()
         {
-            var results = await dataEngine.Store.GetByPrefix<Entity>("123", false);
+            var results = dataEngine.Store.GetByPrefix<Entity>("123", false);
             foreach (var result in results)
             {
                 if (result.Key == null)

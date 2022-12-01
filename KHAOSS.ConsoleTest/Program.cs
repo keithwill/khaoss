@@ -25,7 +25,10 @@ namespace KHAOSS.ConsoleTest
                 engine = DataEngine<Entity>.Create("test.db", SourceGenerationContext.Default.Entity);
                 await engine.StartAsync(CancellationToken.None);
 
-                await TimeIterations("Read Entities", async (thread, i) => { await engine.Store.Get<Entity>($"{thread}-{i}"); }, 100, 10000);
+                await TimeIterations("Read Entities", (thread, i) => {
+                    engine.Store.Get<Entity>($"{thread}-{i}");
+                    return Task.CompletedTask;
+                }, 100, 10000);
                 await engine.ForceMaintenance();
 
                 await engine.StopAsync(CancellationToken.None);
@@ -38,15 +41,20 @@ namespace KHAOSS.ConsoleTest
 
             await TimeIterations("Save Entities", async (thread, i) =>
             {
-                await engine.Store.Save(new Entity($"{thread}-{i}", 0, false, $"Body {i}"));
+                await engine.Store.Save(new Entity($"{thread}-{i}", 0, false, $"""Body Longer Text to take up more space"""));
             }, 100, 10000);
 
-            await TimeIterations("Create Garbage", async (thread, i) =>
+            await TimeIterations("Prefix Search", (thread, i) =>
             {
-                var key = $"{thread}-{i}";
-                var entity = await engine.Store.Get<Entity>(key);
-                entity = await engine.Store.Save(entity);
-                entity = await engine.Store.Save(entity);
+                var results = engine.Store.GetByPrefix<Entity>(thread.ToString() + "-123", false);
+                foreach (var result in results)
+                {
+                    if (result == null)
+                    {
+                        throw new Exception("Failed");
+                    }
+                }
+                return Task.CompletedTask;
             }, 100, 10000);
 
             await engine.StopAsync(CancellationToken.None);
