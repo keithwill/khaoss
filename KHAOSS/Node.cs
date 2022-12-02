@@ -178,41 +178,50 @@ namespace KHAOSS
             return null;
         }
 
-        public void GetValuesByPrefix(Span<byte> key, List<Node<T>> results)
+        public IEnumerable<TSelection> GetValuesByPrefix<TSelection>(Memory<byte> key) where TSelection : class, T
         {
             if (Children != null)
             {
-                foreach(var child in Children)
+                foreach (var child in Children)
                 {
-                    var matchingBytes = GetMatchingBytes(key, child.KeySegment);
+                    var matchingBytes = GetMatchingBytes(key.Span, child.KeySegment);
                     if (matchingBytes > 0)
                     {
                         if (matchingBytes == key.Length)
                         {
                             // We found a key that matched the entire prefix,
                             // either exactly or at least to the length of the search key
-                            child.GetAllValuesAtOrBelow(results);
+                            foreach (var subResult in child.GetAllValuesAtOrBelow<TSelection>())
+                            {
+                                yield return subResult;
+                            }
                         }
                         else if (matchingBytes < key.Length)
                         {
-                            child.GetValuesByPrefix(key.Slice(matchingBytes), results);
-                        }      
+                            foreach(var subResult in child.GetValuesByPrefix<TSelection>(key.Slice(matchingBytes)))
+                            {
+                                yield return subResult;
+                            }
+                        }
                     }
                 }
             }
         }
 
-        public void GetAllValuesAtOrBelow(List<Node<T>> results)
+        public IEnumerable<TSelection> GetAllValuesAtOrBelow<TSelection>() where TSelection : class, T
         {
             if (Value != null)
             {
-                results.Add(this);
+                yield return (TSelection)this.Value;
             }
             if (Children != null)
             {
-                foreach(var child in Children)
+                foreach (var child in Children)
                 {
-                    child.GetAllValuesAtOrBelow(results);
+                    foreach(var subResult in child.GetAllValuesAtOrBelow<TSelection>())
+                    {
+                        yield return subResult;
+                    }
                 }
             }
         }

@@ -35,15 +35,15 @@ public class MemoryStore<T> where T : class, IEntity
         return result.Deleted ? null : result;
     }
 
-    public IEnumerable<T> GetByPrefix(string prefix, bool sortResults)
+    public IEnumerable<TSelection> GetByPrefix<TSelection>(string prefix, bool sortResults) where TSelection : class, T
     {
         if (sortResults)
         {
-            return lookup.GetByPrefix(prefix).OrderBy(x => x.Key);
+            return lookup.GetByPrefix<TSelection>(prefix).OrderBy(x => x.Key);
         }
         else
         {
-            return lookup.GetByPrefix(prefix);
+            return lookup.GetByPrefix<TSelection>(prefix);
         }
     }
 

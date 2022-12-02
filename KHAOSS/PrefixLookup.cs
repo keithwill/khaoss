@@ -106,23 +106,23 @@ namespace KHAOSS
             }
         }
 
-        public IEnumerable<T> GetByPrefix(string keyPrefix)
+        public IEnumerable<TSelection> GetByPrefix<TSelection>(string keyPrefix) where TSelection : class, T
         {
-            var results = new List<Node<T>>();
+            IEnumerable<TSelection> results;
 
-            Span<byte> keyPrefixSpan = Encoding.UTF8.GetBytes(keyPrefix);
+            Memory<byte> keyPrefixSpan = Encoding.UTF8.GetBytes(keyPrefix);
 
             if (lockSlim.IsWriteLockHeld)
             {
                 if (keyPrefix == string.Empty)
                 {
-                    root.GetAllValuesAtOrBelow(results);
+                    results = root.GetAllValuesAtOrBelow<TSelection>();
                 }
                 else
                 {
-                    root.GetValuesByPrefix(keyPrefixSpan, results);
+                    results = root.GetValuesByPrefix<TSelection>(keyPrefixSpan);
                 }
-                return results.Select(x => x.Value);
+                return results.ToArray();
             }
 
             lockSlim.EnterReadLock();
@@ -130,14 +130,13 @@ namespace KHAOSS
             {
                 if (keyPrefix == string.Empty)
                 {
-                    root.GetAllValuesAtOrBelow(results);
+                    results = root.GetAllValuesAtOrBelow<TSelection>();
                 }
                 else
                 {
-                    root.GetValuesByPrefix(keyPrefixSpan, results);
+                    results = root.GetValuesByPrefix<TSelection>(keyPrefixSpan);
                 }
-                return results.Select(x => x.Value);
-
+                return results.ToArray();
             }
             finally
             {

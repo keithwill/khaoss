@@ -40,7 +40,7 @@ public class Store<TBaseEntity> where TBaseEntity : class, IEntity
 
     public IEnumerable<T> GetByPrefix<T>(string prefix, bool sortResults) where T : class, TBaseEntity
     {
-        return memoryStore.GetByPrefix(prefix, sortResults).Cast<T>();
+        return memoryStore.GetByPrefix<T>(prefix, sortResults);
     }
 
 }

@@ -50,7 +50,9 @@ public class AppendOnlyStore<T> : IDisposable where T : class, IEntity
 
         var itemsRewritten = 0;
 
-        foreach (var item in memoryStore.GetByPrefix("", false))
+        var allItems = memoryStore.GetByPrefix<T>("", false).ToList();
+
+        foreach (var item in allItems)
         {
             if (isDisposing)
             {
