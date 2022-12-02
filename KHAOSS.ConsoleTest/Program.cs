@@ -28,7 +28,7 @@ namespace KHAOSS.ConsoleTest
                 await TimeIterations("Read Entities", (thread, i) => {
                     engine.Store.Get<Entity>($"{thread}-{i}");
                     return Task.CompletedTask;
-                }, 100, 10000);
+                }, 100, 1000);
                 await engine.ForceMaintenance();
 
                 await engine.StopAsync(CancellationToken.None);
@@ -42,7 +42,7 @@ namespace KHAOSS.ConsoleTest
             await TimeIterations("Save Entities", async (thread, i) =>
             {
                 await engine.Store.Save(new Entity($"{thread}-{i}", 0, false, $"""Body Longer Text to take up more space"""));
-            }, 100, 10000);
+            }, 100, 1000);
 
             await TimeIterations("Prefix Search", (thread, i) =>
             {
@@ -55,7 +55,7 @@ namespace KHAOSS.ConsoleTest
                     }
                 }
                 return Task.CompletedTask;
-            }, 100, 10000);
+            }, 100, 1000);
 
             await engine.StopAsync(CancellationToken.None);
         }
