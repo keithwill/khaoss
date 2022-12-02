@@ -9,7 +9,7 @@ namespace KHAOSS;
 /// Responsible for processing each transaction and passing the results to both
 /// any memory cache and transaction store.
 /// </summary>
-public class TransactionQueueProcessor<TBaseType> where TBaseType : class, IEntity
+public class TransactionQueue<TBaseType> where TBaseType : class, IEntity
 {
     private readonly AppendOnlyStore<TBaseType> transactionStore;
     private readonly MemoryStore<TBaseType> memoryStore;
@@ -18,7 +18,7 @@ public class TransactionQueueProcessor<TBaseType> where TBaseType : class, IEnti
     private readonly Channel<Transaction<TBaseType>> queueItemChannel;
 
 
-    public TransactionQueueProcessor(
+    public TransactionQueue(
         AppendOnlyStore<TBaseType> transactionStore,
         MemoryStore<TBaseType> memoryStore
     )
@@ -35,7 +35,7 @@ public class TransactionQueueProcessor<TBaseType> where TBaseType : class, IEnti
             throw new InvalidOperationException("Already processing transactions");
         }
         this.processQueuesCancellationTokenSource = new CancellationTokenSource();
-        this.processQueuesTask = Task.Run(ProcessQueues);
+        this.processQueuesTask = Task.Run(ProcessQueue);
         return Task.CompletedTask;
     }
 
@@ -46,7 +46,7 @@ public class TransactionQueueProcessor<TBaseType> where TBaseType : class, IEnti
             await processQueuesTask;
     }
 
-    private async Task ProcessQueues()
+    private async Task ProcessQueue()
     {
 
         var cancellationToken = processQueuesCancellationTokenSource.Token;
@@ -74,7 +74,7 @@ public class TransactionQueueProcessor<TBaseType> where TBaseType : class, IEnti
 
     }
 
-    public Task ProcessTransaction(Transaction<TBaseType> transaction)
+    public Task Enqueue(Transaction<TBaseType> transaction)
     {
         if (!queueItemChannel.Writer.TryWrite(transaction))
         {

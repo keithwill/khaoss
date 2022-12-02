@@ -4,15 +4,15 @@ using System.Text.Json.Serialization.Metadata;
 
 namespace KHAOSS;
 
-public class DataEngine<TEntity> : IDisposable where TEntity : class, IEntity
+public class Engine<TEntity> : IDisposable where TEntity : class, IEntity
 {
-    private readonly TransactionQueueProcessor<TEntity> transactionProcessor;
+    private readonly TransactionQueue<TEntity> transactionProcessor;
     private readonly AppendOnlyStore<TEntity> transactionStore;
     private readonly MemoryStore<TEntity> memoryStore;
-    private readonly DataStore<TEntity> store;
+    private readonly Store<TEntity> store;
 
-    public DataEngine(
-        TransactionQueueProcessor<TEntity> transactionProcessor,
+    public Engine(
+        TransactionQueue<TEntity> transactionProcessor,
         AppendOnlyStore<TEntity> transactionStore,
         MemoryStore<TEntity> memoryStore
         )
@@ -20,10 +20,10 @@ public class DataEngine<TEntity> : IDisposable where TEntity : class, IEntity
         this.transactionProcessor = transactionProcessor;
         this.transactionStore = transactionStore;
         this.memoryStore = memoryStore;
-        this.store = new DataStore<TEntity>(transactionProcessor, memoryStore);
+        this.store = new Store<TEntity>(transactionProcessor, memoryStore);
     }
 
-    public static DataEngine<TEntity> Create(string databaseFilePath, JsonTypeInfo<TEntity> jsonTypeInfo)
+    public static Engine<TEntity> Create(string databaseFilePath, JsonTypeInfo<TEntity> jsonTypeInfo)
     {
         var file = new FileStream(databaseFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 65536);
         var memoryStore = new MemoryStore<TEntity>();
@@ -48,15 +48,15 @@ public class DataEngine<TEntity> : IDisposable where TEntity : class, IEntity
             memoryStore,
             jsonTypeInfo
             );
-        var transactionProcessor = new TransactionQueueProcessor<TEntity>(transactionStore, memoryStore);
-        return new DataEngine<TEntity>(
+        var transactionProcessor = new TransactionQueue<TEntity>(transactionStore, memoryStore);
+        return new Engine<TEntity>(
             transactionProcessor,
             transactionStore,
             memoryStore
         );
     }
 
-    public static DataEngine<TEntity> CreateTransient(JsonTypeInfo<TEntity> jsonTypeInfo)
+    public static Engine<TEntity> CreateTransient(JsonTypeInfo<TEntity> jsonTypeInfo)
     {
         var memoryStream = new MemoryStream();
         var memoryStore = new MemoryStore<TEntity>();
@@ -74,15 +74,15 @@ public class DataEngine<TEntity> : IDisposable where TEntity : class, IEntity
             memoryStore,
             jsonTypeInfo
         );
-        var transactionProcessor = new TransactionQueueProcessor<TEntity>(transactionStore, memoryStore);
-        return new DataEngine<TEntity>(
+        var transactionProcessor = new TransactionQueue<TEntity>(transactionStore, memoryStore);
+        return new Engine<TEntity>(
             transactionProcessor,
             transactionStore,
             memoryStore
         );
     }
 
-    public DataStore<TEntity> Store => store;
+    public Store<TEntity> Store => store;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {

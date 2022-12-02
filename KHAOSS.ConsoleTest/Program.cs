@@ -14,7 +14,7 @@ namespace KHAOSS.ConsoleTest
 
     class Program
     {
-        static DataEngine<Entity> engine;
+        static Engine<Entity> engine;
        
 
         static async Task Main(string[] args)
@@ -22,7 +22,7 @@ namespace KHAOSS.ConsoleTest
 
             if (System.IO.File.Exists("test.db"))
             {
-                engine = DataEngine<Entity>.Create("test.db", SourceGenerationContext.Default.Entity);
+                engine = Engine<Entity>.Create("test.db", SourceGenerationContext.Default.Entity);
                 await engine.StartAsync(CancellationToken.None);
 
                 await TimeIterations("Read Entities", (thread, i) => {
@@ -36,7 +36,7 @@ namespace KHAOSS.ConsoleTest
                 System.IO.File.Delete("test.db");
             }
 
-            engine = DataEngine<Entity>.Create("test.db", SourceGenerationContext.Default.Entity);
+            engine = Engine<Entity>.Create("test.db", SourceGenerationContext.Default.Entity);
             await engine.StartAsync(CancellationToken.None);
 
             await TimeIterations("Save Entities", async (thread, i) =>

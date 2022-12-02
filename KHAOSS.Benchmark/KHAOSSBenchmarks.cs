@@ -22,7 +22,7 @@ namespace KHAOSS.Benchmark
         public int N = 10_000;
 
 
-        private DataEngine<Entity> dataEngine;
+        private Engine<Entity> dataEngine;
         private string testKey = "1234567890";
         private Entity testDocument;
 
@@ -34,7 +34,7 @@ namespace KHAOSS.Benchmark
 
         private void SetupDataEngine()
         {
-            dataEngine = DataEngine<Entity>.CreateTransient(SourceGenerationContext.Default.Entity);
+            dataEngine = Engine<Entity>.CreateTransient(SourceGenerationContext.Default.Entity);
             dataEngine.StartAsync(CancellationToken.None).Wait();
 
             testDocument = new Entity(testKey, 0, false, "test document");

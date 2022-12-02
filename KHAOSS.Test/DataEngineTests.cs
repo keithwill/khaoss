@@ -13,7 +13,7 @@ namespace KHAOSS.Test
         // https://xunit.net/docs/shared-context
         private readonly DataEngineFixture fixture;
 
-        private DataStore<Entity> store => fixture.Store;
+        private Store<Entity> store => fixture.Store;
 
         public DataEngineTests(DataEngineFixture fixture)
         {
@@ -136,7 +136,7 @@ namespace KHAOSS.Test
             var key = "crud";
             var version1 = await store.Save(new TestDocument(key, 0, false, "doc1"));
             var version0 = version1 with { Version = 0 };
-            await Assert.ThrowsAsync<OptimisticConcurrencyException>(async () => await store.Save(version0));
+            await Assert.ThrowsAsync<ConcurrencyException>(async () => await store.Save(version0));
         }
 
         [Fact]
@@ -145,7 +145,7 @@ namespace KHAOSS.Test
             var key = "crud";
             var version1 = await store.Save(new TestDocument(key, 0, false, "doc1"));
             var version0 = version1 with { Deleted = true, Version = 0 };
-            await Assert.ThrowsAsync<OptimisticConcurrencyException>(async () => await store.Save(version0));
+            await Assert.ThrowsAsync<ConcurrencyException>(async () => await store.Save(version0));
         }
 
         [Fact]
@@ -187,7 +187,7 @@ namespace KHAOSS.Test
 
             updated[0] = updated[0] with { Version = 0 }; // Old version number
 
-            await Assert.ThrowsAsync<OptimisticConcurrencyException>(async() => await store.Save(updated));
+            await Assert.ThrowsAsync<ConcurrencyException>(async() => await store.Save(updated));
         }
 
 

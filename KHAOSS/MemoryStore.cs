@@ -63,7 +63,7 @@ public class MemoryStore<T> where T : class, IEntity
                     )
                 {
                     transaction.Entity = existingDocument;
-                    transaction.SetError(new OptimisticConcurrencyException(entity.Key, entity.Version, existingDocument.Version));
+                    transaction.SetError(new ConcurrencyException(entity.Key, entity.Version, existingDocument.Version));
                     return false;
                 }
                 deadEntityCount++;
@@ -94,7 +94,7 @@ public class MemoryStore<T> where T : class, IEntity
                         )
                     {
                         transaction.Entity = existingDocument;
-                        transaction.SetError(new OptimisticConcurrencyException(entity.Key, entity.Version, existingDocument.Version));
+                        transaction.SetError(new ConcurrencyException(entity.Key, entity.Version, existingDocument.Version));
                         return false;
                     }
                     deadEntitiesInExisting++;
