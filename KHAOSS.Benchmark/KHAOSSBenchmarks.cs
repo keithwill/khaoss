@@ -33,28 +33,28 @@ namespace KHAOSS.Benchmark
             Task[] setResults = new Task[N];
             for (int i = 0; i < N; i++)
             {
-                setResults[i] = dataEngine.Store.Save(new Entity(i.ToString(), 0, false, $"Test Body {i}"));
+                setResults[i] = dataEngine.Save(new Entity(i.ToString(), 0, false, $"Test Body {i}"));
             }
             Task.WaitAll(setResults);
-            testDocument = dataEngine.Store.Get<Entity>(testKey);
+            testDocument = dataEngine.Get<Entity>(testKey);
         }
 
         [Benchmark]
         public void GetByKey()
         {
-            var document = dataEngine.Store.Get<Entity>(testKey);
+            var document = dataEngine.Get<Entity>(testKey);
         }
 
         [Benchmark]
         public async Task SetKey()
         {
-            testDocument = await dataEngine.Store.Save(testDocument);
+            testDocument = await dataEngine.Save(testDocument);
         }
 
         [Benchmark]
         public void GetKeyPrefix()
         {
-            var results = dataEngine.Store.GetByPrefix<Entity>("12345", false);
+            var results = dataEngine.GetByPrefix<Entity>("12345", false);
             foreach (var result in results)
             {
                 if (result.Key == null)

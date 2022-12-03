@@ -16,7 +16,7 @@ public class TransactionLog<T> : IDisposable where T : class, IEntity
     private Stream outputStream;
     private readonly Func<Stream> rewriteStreamFactory;
     private readonly Func<Stream, Stream, Stream> swapRewriteStreamCallback;
-    private readonly MemoryStore<T> memoryStore;
+    private readonly EntityStore<T> memoryStore;
     private readonly JsonTypeInfo<T> jsonTypeInfo;
     private Task flushTask;
     private int unflushed = 0;
@@ -31,7 +31,7 @@ public class TransactionLog<T> : IDisposable where T : class, IEntity
         Stream outputStream,
         Func<Stream> rewriteStreamFactory,
         Func<Stream, Stream, Stream> swapRewriteStreamCallback,
-        MemoryStore<T> memoryStore,
+        EntityStore<T> memoryStore,
         JsonTypeInfo<T> jsonTypeInfo
         )
     {

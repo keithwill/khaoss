@@ -8,25 +8,23 @@ public class Connection<TEntity> : IDisposable where TEntity : class, IEntity
 {
     private readonly TransactionQueue<TEntity> transactionProcessor;
     private readonly TransactionLog<TEntity> transactionStore;
-    private readonly MemoryStore<TEntity> memoryStore;
-    private readonly Store<TEntity> store;
+    private readonly EntityStore<TEntity> memoryStore;
 
     public Connection(
         TransactionQueue<TEntity> transactionProcessor,
         TransactionLog<TEntity> transactionStore,
-        MemoryStore<TEntity> memoryStore
+        EntityStore<TEntity> memoryStore
         )
     {
         this.transactionProcessor = transactionProcessor;
         this.transactionStore = transactionStore;
         this.memoryStore = memoryStore;
-        this.store = new Store<TEntity>(transactionProcessor, memoryStore);
     }
 
     public static Connection<TEntity> Create(string databaseFilePath, JsonTypeInfo<TEntity> jsonTypeInfo)
     {
         var file = new FileStream(databaseFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 65536);
-        var memoryStore = new MemoryStore<TEntity>();
+        var memoryStore = new EntityStore<TEntity>();
         var transactionStore = new TransactionLog<TEntity>(
             file,
             () => new FileStream(Guid.NewGuid().ToString() + ".tmp", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 65536),
@@ -59,7 +57,7 @@ public class Connection<TEntity> : IDisposable where TEntity : class, IEntity
     public static Connection<TEntity> CreateTransient(JsonTypeInfo<TEntity> jsonTypeInfo)
     {
         var memoryStream = new MemoryStream();
-        var memoryStore = new MemoryStore<TEntity>();
+        var memoryStore = new EntityStore<TEntity>();
         var transactionStore = new TransactionLog<TEntity>(
             memoryStream,
             () => new MemoryStream(),
@@ -81,8 +79,6 @@ public class Connection<TEntity> : IDisposable where TEntity : class, IEntity
             memoryStore
         );
     }
-
-    public Store<TEntity> Store => store;
 
     public async Task OpenAsync(CancellationToken cancellationToken)
     {

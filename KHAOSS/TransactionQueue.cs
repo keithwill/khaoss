@@ -12,7 +12,7 @@ namespace KHAOSS;
 public class TransactionQueue<TBaseType> where TBaseType : class, IEntity
 {
     private readonly TransactionLog<TBaseType> transactionStore;
-    private readonly MemoryStore<TBaseType> memoryStore;
+    private readonly EntityStore<TBaseType> memoryStore;
     private Task processQueuesTask;
     private CancellationTokenSource processQueuesCancellationTokenSource;
     private readonly Channel<Transaction<TBaseType>> queueItemChannel;
@@ -20,7 +20,7 @@ public class TransactionQueue<TBaseType> where TBaseType : class, IEntity
 
     public TransactionQueue(
         TransactionLog<TBaseType> transactionStore,
-        MemoryStore<TBaseType> memoryStore
+        EntityStore<TBaseType> memoryStore
     )
     {
         this.queueItemChannel = Channel.CreateUnbounded<Transaction<TBaseType>>(new UnboundedChannelOptions { SingleReader = true });

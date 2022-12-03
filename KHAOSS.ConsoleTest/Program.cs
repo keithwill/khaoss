@@ -26,7 +26,7 @@ namespace KHAOSS.ConsoleTest
                 await engine.OpenAsync(CancellationToken.None);
 
                 await TimeIterations("Read Entities", (thread, i) => {
-                    engine.Store.Get<Entity>($"{thread}-{i}");
+                    engine.Get<Entity>($"{thread}-{i}");
                     return Task.CompletedTask;
                 }, 100, 1000);
                 await engine.ForceMaintenance();
@@ -41,12 +41,12 @@ namespace KHAOSS.ConsoleTest
 
             await TimeIterations("Save Entities", async (thread, i) =>
             {
-                await engine.Store.Save(new Entity($"{thread}-{i}", 0, false, $"""Body Longer Text to take up more space"""));
+                await engine.Save(new Entity($"{thread}-{i}", 0, false, $"""Body Longer Text to take up more space"""));
             }, 100, 1000);
 
             await TimeIterations("Prefix Search", (thread, i) =>
             {
-                var results = engine.Store.GetByPrefix<Entity>(thread.ToString() + "-123", false);
+                var results = engine.GetByPrefix<Entity>(thread.ToString() + "-123", false);
                 foreach (var result in results)
                 {
                     if (result == null)

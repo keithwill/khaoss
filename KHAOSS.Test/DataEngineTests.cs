@@ -13,7 +13,7 @@ namespace KHAOSS.Test
         // https://xunit.net/docs/shared-context
         private readonly DataEngineFixture fixture;
 
-        private Store<Entity> store => fixture.Store;
+        private Connection<Entity> store => fixture.Engine;
 
         public DataEngineTests(DataEngineFixture fixture)
         {

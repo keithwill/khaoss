@@ -4,7 +4,7 @@
 /// An light in-memory transactional wrapper around storing documents in memory.
 /// The in-memory representation is implemented as a radix tree
 /// </summary>
-public class MemoryStore<T> where T : class, IEntity
+public class EntityStore<T> where T : class, IEntity
 {
 
     private readonly PrefixLookup<T> lookup;
@@ -13,7 +13,7 @@ public class MemoryStore<T> where T : class, IEntity
     private long entityCount;
     public long DeadEntityCount => deadEntityCount;
     public long EntityCount => entityCount;
-    public MemoryStore()
+    public EntityStore()
     {
         lookup = new();
     }
