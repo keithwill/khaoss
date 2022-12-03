@@ -14,7 +14,7 @@ namespace KHAOSS.ConsoleTest
 
     class Program
     {
-        static Engine<Entity> engine;
+        static Connection<Entity> engine;
        
 
         static async Task Main(string[] args)
@@ -22,8 +22,8 @@ namespace KHAOSS.ConsoleTest
 
             if (System.IO.File.Exists("test.db"))
             {
-                engine = Engine<Entity>.Create("test.db", SourceGenerationContext.Default.Entity);
-                await engine.StartAsync(CancellationToken.None);
+                engine = Connection<Entity>.Create("test.db", SourceGenerationContext.Default.Entity);
+                await engine.OpenAsync(CancellationToken.None);
 
                 await TimeIterations("Read Entities", (thread, i) => {
                     engine.Store.Get<Entity>($"{thread}-{i}");
@@ -31,13 +31,13 @@ namespace KHAOSS.ConsoleTest
                 }, 100, 1000);
                 await engine.ForceMaintenance();
 
-                await engine.StopAsync(CancellationToken.None);
+                await engine.Close(CancellationToken.None);
 
                 System.IO.File.Delete("test.db");
             }
 
-            engine = Engine<Entity>.Create("test.db", SourceGenerationContext.Default.Entity);
-            await engine.StartAsync(CancellationToken.None);
+            engine = Connection<Entity>.Create("test.db", SourceGenerationContext.Default.Entity);
+            await engine.OpenAsync(CancellationToken.None);
 
             await TimeIterations("Save Entities", async (thread, i) =>
             {
@@ -57,7 +57,7 @@ namespace KHAOSS.ConsoleTest
                 return Task.CompletedTask;
             }, 100, 1000);
 
-            await engine.StopAsync(CancellationToken.None);
+            await engine.Close(CancellationToken.None);
         }
 
 

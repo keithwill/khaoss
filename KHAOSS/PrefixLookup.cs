@@ -14,7 +14,6 @@ namespace KHAOSS
     /// supports looking up matching values by a key
     /// prefix value. Internally implemented with a radix
     /// tree where leaf nodes also store associated values.
-    /// No members of this class are thread safe.
     /// </summary>
     /// <seealso>https://en.wikipedia.org/wiki/Radix_tree</seealso>
     /// 

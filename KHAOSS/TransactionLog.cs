@@ -11,7 +11,7 @@ namespace KHAOSS;
 /// Shrinking removed data from the file doubles as backing up the transaction
 /// store, as it requires rewriting.
 /// </summary>
-public class AppendOnlyStore<T> : IDisposable where T : class, IEntity
+public class TransactionLog<T> : IDisposable where T : class, IEntity
 {
     private Stream outputStream;
     private readonly Func<Stream> rewriteStreamFactory;
@@ -27,7 +27,7 @@ public class AppendOnlyStore<T> : IDisposable where T : class, IEntity
     private MemoryStream rewriteTailBuffer;
     private Stream rewriteStream;
 
-    public AppendOnlyStore(
+    public TransactionLog(
         Stream outputStream,
         Func<Stream> rewriteStreamFactory,
         Func<Stream, Stream, Stream> swapRewriteStreamCallback,

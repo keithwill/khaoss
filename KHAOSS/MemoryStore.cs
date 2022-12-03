@@ -2,7 +2,7 @@
 
 /// <summary>
 /// An light in-memory transactional wrapper around storing documents in memory.
-/// The in-memory representation is implemented as a radix tree.
+/// The in-memory representation is implemented as a radix tree
 /// </summary>
 public class MemoryStore<T> where T : class, IEntity
 {

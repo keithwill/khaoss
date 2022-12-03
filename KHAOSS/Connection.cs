@@ -4,16 +4,16 @@ using System.Text.Json.Serialization.Metadata;
 
 namespace KHAOSS;
 
-public class Engine<TEntity> : IDisposable where TEntity : class, IEntity
+public class Connection<TEntity> : IDisposable where TEntity : class, IEntity
 {
     private readonly TransactionQueue<TEntity> transactionProcessor;
-    private readonly AppendOnlyStore<TEntity> transactionStore;
+    private readonly TransactionLog<TEntity> transactionStore;
     private readonly MemoryStore<TEntity> memoryStore;
     private readonly Store<TEntity> store;
 
-    public Engine(
+    public Connection(
         TransactionQueue<TEntity> transactionProcessor,
-        AppendOnlyStore<TEntity> transactionStore,
+        TransactionLog<TEntity> transactionStore,
         MemoryStore<TEntity> memoryStore
         )
     {
@@ -23,11 +23,11 @@ public class Engine<TEntity> : IDisposable where TEntity : class, IEntity
         this.store = new Store<TEntity>(transactionProcessor, memoryStore);
     }
 
-    public static Engine<TEntity> Create(string databaseFilePath, JsonTypeInfo<TEntity> jsonTypeInfo)
+    public static Connection<TEntity> Create(string databaseFilePath, JsonTypeInfo<TEntity> jsonTypeInfo)
     {
         var file = new FileStream(databaseFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 65536);
         var memoryStore = new MemoryStore<TEntity>();
-        var transactionStore = new AppendOnlyStore<TEntity>(
+        var transactionStore = new TransactionLog<TEntity>(
             file,
             () => new FileStream(Guid.NewGuid().ToString() + ".tmp", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 65536),
             (outputStream, rewriteStream) =>
@@ -49,18 +49,18 @@ public class Engine<TEntity> : IDisposable where TEntity : class, IEntity
             jsonTypeInfo
             );
         var transactionProcessor = new TransactionQueue<TEntity>(transactionStore, memoryStore);
-        return new Engine<TEntity>(
+        return new Connection<TEntity>(
             transactionProcessor,
             transactionStore,
             memoryStore
         );
     }
 
-    public static Engine<TEntity> CreateTransient(JsonTypeInfo<TEntity> jsonTypeInfo)
+    public static Connection<TEntity> CreateTransient(JsonTypeInfo<TEntity> jsonTypeInfo)
     {
         var memoryStream = new MemoryStream();
         var memoryStore = new MemoryStore<TEntity>();
-        var transactionStore = new AppendOnlyStore<TEntity>(
+        var transactionStore = new TransactionLog<TEntity>(
             memoryStream,
             () => new MemoryStream(),
             (outputStream, rewriteStream) =>
@@ -75,7 +75,7 @@ public class Engine<TEntity> : IDisposable where TEntity : class, IEntity
             jsonTypeInfo
         );
         var transactionProcessor = new TransactionQueue<TEntity>(transactionStore, memoryStore);
-        return new Engine<TEntity>(
+        return new Connection<TEntity>(
             transactionProcessor,
             transactionStore,
             memoryStore
@@ -84,14 +84,14 @@ public class Engine<TEntity> : IDisposable where TEntity : class, IEntity
 
     public Store<TEntity> Store => store;
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public async Task OpenAsync(CancellationToken cancellationToken)
     {
         this.transactionStore.StartFileManagement();
         this.LoadRecordsFromStore(cancellationToken);
         await this.transactionProcessor.Start();
     }
 
-    public async Task StopAsync(CancellationToken cancellationToken)
+    public async Task Close(CancellationToken cancellationToken)
     {
         this.disposing = true;
         await this.transactionProcessor.Stop();
@@ -163,4 +163,29 @@ public class Engine<TEntity> : IDisposable where TEntity : class, IEntity
     public double DeadSpacePercentage => memoryStore.EntityCount == 0 ?
         0.0 :
         memoryStore.DeadEntityCount / memoryStore.EntityCount;
+
+
+    public async Task<TEntity[]> Save(TEntity[] entities)
+    {
+        var transaction = new Transaction<TEntity>(entities);
+        await transactionProcessor.Enqueue(transaction);
+        return transaction.Entities;
+    }
+
+    public async Task<T> Save<T>(T entity) where T : class, TEntity
+    {
+        var transaction = new Transaction<TEntity>(entity);
+        await transactionProcessor.Enqueue(transaction);
+        return transaction.Entity as T;
+    }
+
+    public T Get<T>(string key) where T : class, TEntity
+    {
+        return memoryStore.Get(key) as T;
+    }
+
+    public IEnumerable<T> GetByPrefix<T>(string prefix, bool sortResults) where T : class, TEntity
+    {
+        return memoryStore.GetByPrefix<T>(prefix, sortResults);
+    }
 }

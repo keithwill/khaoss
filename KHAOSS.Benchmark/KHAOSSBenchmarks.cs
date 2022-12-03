@@ -16,7 +16,7 @@ namespace KHAOSS.Benchmark
     {
 
         public int N = 999_999;
-        private Engine<Entity> dataEngine;
+        private Connection<Entity> dataEngine;
         private string testKey = "123456";
         private Entity testDocument;
 
@@ -27,8 +27,8 @@ namespace KHAOSS.Benchmark
 
         private void SetupDataEngine()
         {
-            dataEngine = Engine<Entity>.CreateTransient(SourceGenerationContext.Default.Entity);
-            dataEngine.StartAsync(CancellationToken.None).Wait();
+            dataEngine = Connection<Entity>.CreateTransient(SourceGenerationContext.Default.Entity);
+            dataEngine.OpenAsync(CancellationToken.None).Wait();
 
             Task[] setResults = new Task[N];
             for (int i = 0; i < N; i++)

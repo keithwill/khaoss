@@ -11,7 +11,7 @@ namespace KHAOSS;
 /// </summary>
 public class TransactionQueue<TBaseType> where TBaseType : class, IEntity
 {
-    private readonly AppendOnlyStore<TBaseType> transactionStore;
+    private readonly TransactionLog<TBaseType> transactionStore;
     private readonly MemoryStore<TBaseType> memoryStore;
     private Task processQueuesTask;
     private CancellationTokenSource processQueuesCancellationTokenSource;
@@ -19,7 +19,7 @@ public class TransactionQueue<TBaseType> where TBaseType : class, IEntity
 
 
     public TransactionQueue(
-        AppendOnlyStore<TBaseType> transactionStore,
+        TransactionLog<TBaseType> transactionStore,
         MemoryStore<TBaseType> memoryStore
     )
     {

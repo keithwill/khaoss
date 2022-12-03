@@ -11,7 +11,7 @@ public class Program
     {
         var summary = BenchmarkRunner.Run<KHAOSSBenchmarks>(config: DefaultConfig.Instance.AddJob(Job.Default.WithMaxRelativeError(.05)));
         Console.WriteLine("Press enter to continue to ConcurrentDictionaryTests");
-        Console.ReadLine();
-        var summary2 = BenchmarkRunner.Run<ConcurrentDictionaryBenchmarks>(config: DefaultConfig.Instance.AddJob(Job.Default.WithMaxRelativeError(.05)));
+        //Console.ReadLine();
+        //var summary2 = BenchmarkRunner.Run<ConcurrentDictionaryBenchmarks>(config: DefaultConfig.Instance.AddJob(Job.Default.WithMaxRelativeError(.05)));
     }
 }
