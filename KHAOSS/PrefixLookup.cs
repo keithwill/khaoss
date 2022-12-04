@@ -93,6 +93,13 @@ namespace KHAOSS
 
         public void Clear()
         {
+            if (lockSlim.IsWriteLockHeld)
+            {
+                this.root.Value = null;
+                this.root.Children = null;
+                return;
+            }
+
             lockSlim.EnterWriteLock();
             try
             {

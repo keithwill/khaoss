@@ -50,7 +50,7 @@ public class TransactionLog<T> : IDisposable where T : class, IEntity
 
         var itemsRewritten = 0;
 
-        var allItems = memoryStore.GetByPrefix<T>("", false).ToList();
+        var allItems = memoryStore.GetByPrefix<T>("", false).ToArray();
 
         foreach (var item in allItems)
         {
@@ -135,14 +135,14 @@ public class TransactionLog<T> : IDisposable where T : class, IEntity
 
     }
 
-    public IEnumerable<T> LoadRecords(CancellationToken cancellationToken)
+    public async IAsyncEnumerable<T> LoadRecords(CancellationToken cancellationToken)
     {
 
-        using var sr = new StreamReader(outputStream, System.Text.Encoding.UTF8, leaveOpen: true);
+        using var sr = new StreamReader(outputStream, Encoding.UTF8, leaveOpen: true);
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            var line = sr.ReadLine();
+            var line = await sr.ReadLineAsync();
             if (line == null)
             {
                 yield break;

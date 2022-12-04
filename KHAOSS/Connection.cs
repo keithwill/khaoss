@@ -6,7 +6,7 @@ namespace KHAOSS;
 
 public class Connection<TEntity> : IDisposable where TEntity : class, IEntity
 {
-    private readonly TransactionQueue<TEntity> transactionProcessor;
+    private readonly TransactionQueue<TEntity> transactionQueue;
     private readonly TransactionLog<TEntity> transactionStore;
     private readonly EntityStore<TEntity> memoryStore;
 
@@ -16,7 +16,7 @@ public class Connection<TEntity> : IDisposable where TEntity : class, IEntity
         EntityStore<TEntity> memoryStore
         )
     {
-        this.transactionProcessor = transactionProcessor;
+        this.transactionQueue = transactionProcessor;
         this.transactionStore = transactionStore;
         this.memoryStore = memoryStore;
     }
@@ -83,14 +83,14 @@ public class Connection<TEntity> : IDisposable where TEntity : class, IEntity
     public async Task OpenAsync(CancellationToken cancellationToken)
     {
         this.transactionStore.StartFileManagement();
-        this.LoadRecordsFromStore(cancellationToken);
-        await this.transactionProcessor.Start();
+        await this.LoadRecordsFromStore(cancellationToken);
+        await this.transactionQueue.Start();
     }
 
     public async Task Close(CancellationToken cancellationToken)
     {
         this.disposing = true;
-        await this.transactionProcessor.Stop();
+        await this.transactionQueue.Stop();
         this.transactionStore.Dispose();
         if (this.transactionStore.RewriteTask != null && !this.transactionStore.RewriteTask.IsCompleted)
         {
@@ -98,9 +98,9 @@ public class Connection<TEntity> : IDisposable where TEntity : class, IEntity
         }
     }
 
-    private void LoadRecordsFromStore(CancellationToken cancellationToken)
+    private async Task LoadRecordsFromStore(CancellationToken cancellationToken)
     {
-        foreach (var record in this.transactionStore.LoadRecords(cancellationToken))
+        await foreach (var record in this.transactionStore.LoadRecords(cancellationToken))
         {
             memoryStore.LoadChange(record.Key, record);
         }
@@ -117,7 +117,7 @@ public class Connection<TEntity> : IDisposable where TEntity : class, IEntity
         disposing = true;
         try
         {
-            this.transactionProcessor.Stop().Wait();
+            this.transactionQueue.Stop().Wait();
         }
         catch(OperationCanceledException)
         {
@@ -143,8 +143,16 @@ public class Connection<TEntity> : IDisposable where TEntity : class, IEntity
 
     public void RemoveAllDocuments()
     {
-        this.memoryStore.RemoveAllDocuments();
-        this.transactionStore.RemoveAllDocuments();
+        this.memoryStore.Lock();
+        try
+        {
+            this.memoryStore.RemoveAllDocuments();
+            this.transactionStore.RemoveAllDocuments();
+        }
+        finally
+        {
+            this.memoryStore.Unlock();
+        }
     }
 
     public Task ForceMaintenance()
@@ -164,15 +172,15 @@ public class Connection<TEntity> : IDisposable where TEntity : class, IEntity
     public async Task<TEntity[]> Save(TEntity[] entities)
     {
         var transaction = new Transaction<TEntity>(entities);
-        await transactionProcessor.Enqueue(transaction);
+        await transactionQueue.Enqueue(transaction);
         return transaction.Entities;
     }
 
     public async Task<T> Save<T>(T entity) where T : class, TEntity
     {
         var transaction = new Transaction<TEntity>(entity);
-        await transactionProcessor.Enqueue(transaction);
-        return transaction.Entity as T;
+        await transactionQueue.Enqueue(transaction);
+        return (T)transaction.Entity;
     }
 
     public T Get<T>(string key) where T : class, TEntity

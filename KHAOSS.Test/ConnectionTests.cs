@@ -8,17 +8,17 @@ using Xunit;
 namespace KHAOSS.Test
 {
 
-    public class DataEngineTests : IClassFixture<DataEngineFixture>
+    public class ConnectionTests : IClassFixture<ConnectionFixture>
     {
         // https://xunit.net/docs/shared-context
-        private readonly DataEngineFixture fixture;
+        private readonly ConnectionFixture fixture;
 
-        private Connection<Entity> store => fixture.Engine;
+        private Connection<Entity> store => fixture.Connection;
 
-        public DataEngineTests(DataEngineFixture fixture)
+        public ConnectionTests(ConnectionFixture fixture)
         {
             this.fixture = fixture;
-            this.fixture.Engine.RemoveAllDocuments();
+            this.fixture.Connection.RemoveAllDocuments();
         }
 
         [Fact]
@@ -54,7 +54,7 @@ namespace KHAOSS.Test
             await store.Save(entity1);
             var entity2 = entity1 with { Body = "some contents2", Version = 1};
             await store.Save(entity2);
-            var deadSpace = this.fixture.Engine.DeadEntityCount;
+            var deadSpace = this.fixture.Connection.DeadEntityCount;
             var deadSpaceGreaterThanZero = deadSpace > 0;
             Assert.True(deadSpaceGreaterThanZero);
         }
@@ -67,11 +67,11 @@ namespace KHAOSS.Test
             await store.Save(entity1);
             var entity2 = entity1 with { Body = "some contents2", Version = 1 };
             await store.Save(entity2);
-            var deadSpace = this.fixture.Engine.DeadEntityCount;
+            var deadSpace = this.fixture.Connection.DeadEntityCount;
 
-            var deadSpaceBeforeMaintenance = this.fixture.Engine.DeadEntityCount;
-            await this.fixture.Engine.ForceMaintenance();
-            var deadSpaceAfterMaintenance = this.fixture.Engine.DeadEntityCount;
+            var deadSpaceBeforeMaintenance = this.fixture.Connection.DeadEntityCount;
+            await this.fixture.Connection.ForceMaintenance();
+            var deadSpaceAfterMaintenance = this.fixture.Connection.DeadEntityCount;
             var deadSpaceAfterMaintenanceIsLess = deadSpaceBeforeMaintenance > deadSpaceAfterMaintenance;
             Assert.True(deadSpaceAfterMaintenanceIsLess);
         }

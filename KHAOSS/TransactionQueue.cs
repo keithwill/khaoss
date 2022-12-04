@@ -6,8 +6,8 @@ namespace KHAOSS;
 /// <summary>
 /// Takes requests from the data store and flattens them to a single
 /// thread by forcing them to pass through a thread safe queue with a single consumer.
-/// Responsible for processing each transaction and passing the results to both
-/// any memory cache and transaction store.
+/// Responsible for processing each transaction and passing the results to the entity store
+/// and to the transaction log.
 /// </summary>
 public class TransactionQueue<TBaseType> where TBaseType : class, IEntity
 {
