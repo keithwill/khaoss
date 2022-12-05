@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
@@ -81,7 +82,6 @@ public class TransactionLog<T> : IDisposable where T : class, IEntity
             endingLength = rewriteStream.Length;
             outputStream = swapRewriteStreamCallback(outputStream, rewriteStream);
             rewriteTailBuffer.WriteTo(outputStream);
-            rewriteStream.Dispose();
             rewriteTailBuffer.Dispose();
             rewriteStream = null;
             rewriteTailBuffer = null;
@@ -135,14 +135,14 @@ public class TransactionLog<T> : IDisposable where T : class, IEntity
 
     }
 
-    public async IAsyncEnumerable<T> LoadRecords(CancellationToken cancellationToken)
+    public async IAsyncEnumerable<T> LoadRecords([EnumeratorCancellation] CancellationToken cancellationToken)
     {
 
         using var sr = new StreamReader(outputStream, Encoding.UTF8, leaveOpen: true);
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            var line = await sr.ReadLineAsync();
+            var line = await sr.ReadLineAsync(cancellationToken);
             if (line == null)
             {
                 yield break;

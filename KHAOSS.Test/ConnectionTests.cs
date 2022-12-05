@@ -104,22 +104,29 @@ namespace KHAOSS.Test
         [Fact]
         public async Task PrefixSearch_CanSortResults()
         {
-            string key = "prefix";
-            string prefix = "prefix";
+            string aKey = "AKey";
+            string bKey = "BKey";
+            string cKey = "CKey";
+
             string body = "body";
 
-            var expectedDocument = await store.Save(new TestDocument(key, 0, false, body));
-            var prefixResults = store.GetByPrefix<TestDocument>(prefix, false);
-            var firstMatchByPrefix = prefixResults.FirstOrDefault();
-            Assert.Equal(expectedDocument, firstMatchByPrefix);
+            var cDoc = await store.Save(new TestDocument(cKey, 0, false, body));
+            var bDoc = await store.Save(new TestDocument(bKey, 0, false, body));
+            var aDoc = await store.Save(new TestDocument(aKey, 0, false, body));
+
+            var prefixResults = store.GetByPrefix<TestDocument>("", true).ToArray();
+
+            Assert.Equal(3, prefixResults.Length);
+            Assert.Equal(aDoc, prefixResults[0]);
+            Assert.Equal(bDoc, prefixResults[1]);
+            Assert.Equal(cDoc, prefixResults[2]);
         }
 
         [Fact]
-        public async Task KeysAreCaseInsensitive()
+        public async Task KeysAreCaseSensitive()
         {
             var key = "crud";
             var notKey = "CrUd";
-
 
             await store.Save(new TestDocument(key, 0, false, "doc1"));
             await store.Save(new TestDocument(notKey, 0, false, "doc2"));
@@ -176,18 +183,18 @@ namespace KHAOSS.Test
         public async Task Multi_AllChangesRejectedOnAnyOldVersionDocument()
         {
 
+            var testDoc = await store.Save(new TestDocument("1", 0, false, "body1"));
+            
+            var docWithOldVersion = testDoc with { Version= 0 }; 
+
             Entity[] changes = new Entity[]
             {
-                new TestDocument("1", 0, false, "body1"),
+                docWithOldVersion,
                 new TestDocument("2", 0, false, "body2"),
                 new Entity("3", 0, false)
             };
 
-            var updated = await store.Save(changes);
-
-            updated[0] = updated[0] with { Version = 0 }; // Old version number
-
-            await Assert.ThrowsAsync<ConcurrencyException>(async() => await store.Save(updated));
+            await Assert.ThrowsAsync<ConcurrencyException>(async() => await store.Save(changes));
         }
 
 

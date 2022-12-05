@@ -23,35 +23,48 @@ public class Connection<TEntity> : IDisposable where TEntity : class, IEntity
 
     public static Connection<TEntity> Create(string databaseFilePath, JsonTypeInfo<TEntity> jsonTypeInfo)
     {
+
         var file = new FileStream(databaseFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 65536);
         var memoryStore = new EntityStore<TEntity>();
+
         var transactionStore = new TransactionLog<TEntity>(
             file,
-            () => new FileStream(Guid.NewGuid().ToString() + ".tmp", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 65536),
-            (outputStream, rewriteStream) =>
-            {
-                var rewriteFileStream = (FileStream)rewriteStream;
-                var rewriteFilePath = rewriteFileStream.Name;
-
-                rewriteFileStream.Close();
-                outputStream.Close();
-
-                File.Move(rewriteFilePath, databaseFilePath, true);
-                var newOutputStream = new FileStream(databaseFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 65536);
-                newOutputStream.Position = newOutputStream.Length;
-                newOutputStream.Flush();
-
-                return newOutputStream;
-            },
+            RewriteFileStreamFactory,
+            SwapFileRewriteStream,
             memoryStore,
             jsonTypeInfo
             );
+
         var transactionProcessor = new TransactionQueue<TEntity>(transactionStore, memoryStore);
+
         return new Connection<TEntity>(
             transactionProcessor,
             transactionStore,
             memoryStore
         );
+
+    }
+
+    private static Stream SwapFileRewriteStream(Stream outputStream, Stream rewriteStream)
+    {
+        var rewriteFileStream = (FileStream)rewriteStream;
+        var outputFileStream = (FileStream)outputStream;
+
+        var databaseFilePath = outputFileStream.Name;
+        var rewriteFilePath = rewriteFileStream.Name;
+
+        rewriteFileStream.Close();
+        outputFileStream.Close();
+
+        File.Move(rewriteFilePath, databaseFilePath, true);
+        var newOutputStream = new FileStream(databaseFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 65536);
+        newOutputStream.Position = newOutputStream.Length;
+        return newOutputStream;
+    }
+
+    private static Stream RewriteFileStreamFactory()
+    { 
+        return new FileStream(Guid.NewGuid().ToString() + ".tmp", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 65536);
     }
 
     public static Connection<TEntity> CreateTransient(JsonTypeInfo<TEntity> jsonTypeInfo)
@@ -61,14 +74,7 @@ public class Connection<TEntity> : IDisposable where TEntity : class, IEntity
         var transactionStore = new TransactionLog<TEntity>(
             memoryStream,
             () => new MemoryStream(),
-            (outputStream, rewriteStream) =>
-            {
-                var newOutputStream = new MemoryStream();
-                rewriteStream.CopyTo(newOutputStream);
-                newOutputStream.Position = newOutputStream.Length;
-
-                return newOutputStream;
-            },
+            SwapMemoryRewriteStream,
             memoryStore,
             jsonTypeInfo
         );
@@ -78,6 +84,16 @@ public class Connection<TEntity> : IDisposable where TEntity : class, IEntity
             transactionStore,
             memoryStore
         );
+    }
+
+    private static Stream SwapMemoryRewriteStream(Stream outputStream, Stream rewriteStream)
+    {
+        outputStream.Dispose();
+        return rewriteStream;
+        //var newOutputStream = new MemoryStream();
+        //rewriteStream.CopyTo(newOutputStream);
+        //newOutputStream.Position = newOutputStream.Length;
+        //return newOutputStream;
     }
 
     public async Task OpenAsync(CancellationToken cancellationToken)
@@ -107,6 +123,8 @@ public class Connection<TEntity> : IDisposable where TEntity : class, IEntity
     }
 
     private bool disposing = false;
+
+    public bool IsDisposed => this.disposing;
 
     public void Dispose()
     {
