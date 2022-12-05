@@ -7,12 +7,19 @@ using System.Threading.Tasks;
 
 namespace KHAOSS.ConsoleTest
 {
+    [JsonDerivedType(typeof(Entity), nameof(Entity))]
+    [JsonDerivedType(typeof(TestEntity), nameof(TestEntity))]
     public record class Entity(string Key, int Version, bool Deleted, string Body) : IEntity
     {
         public IEntity WithVersion(int version)
         {
             return this with { Version = version };
         }
+    }
+
+    public record TestEntity(string Key, int Version, bool Deleted, string Body, string Address) : Entity(Key, Version, Deleted, Body)
+    {
+
     }
 
     [JsonSourceGenerationOptions(WriteIndented = false)]
